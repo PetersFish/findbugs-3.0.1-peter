@@ -1,0 +1,17 @@
+<Resources xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+           xsi:noNamespaceSchemaLocation="resource.xsd">
+    <Resource className="java.io.FileOutputStream"><!-- 资源的全限定名 -->
+        <addMethods>
+            <!-- 开启资源方法的className（类名）methodName（方法名）methodSignature（参数和返回值类型） -->
+            <addMethod className="java.io.FileOutputStream" methodName="&lt;init&gt;"
+                       methodSignature="(Ljava/lang/String;)V"/>
+        </addMethods>
+        <delMethods>
+            <!-- 关闭资源方法的className（类名）methodName（方法名）methodSignature（参数和返回值类型） -->
+            <delMethod className="java.io.FileOutputStream" methodName="close"
+                      methodSignature="()V"/>
+            <delMethod className="java.io.OutputStream" methodName="close"
+                      methodSignature="()V"/>
+        </delMethods>
+    </Resource>
+</Resources>
