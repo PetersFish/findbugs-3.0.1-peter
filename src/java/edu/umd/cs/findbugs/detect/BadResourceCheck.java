@@ -33,27 +33,17 @@ public class BadResourceCheck extends BytecodeScanningDetector {
     }
 
     public BadResourceCheck(BugReporter bugReporter,
-                            Resource currentLookIntoReturnResource,
-                            LinkedStack<Resource> lookIntoReturnResourceStack,
+                            Boolean currentLookIntoReturnResource,
                             ResourceInstanceCapturer currentLevelCapturer,
-                            LinkedStack<ResourceInstanceCapturer> capturerStatk,
                             Integer currentLevelLastRegLoad,
-                            LinkedStack<Integer> lastRegLoadStack,
                             Integer currentScanLevel,
-                            LinkedStack<Integer> scanLevelStack,
-                            Method currentSpecifiedMethod,
-                            LinkedStack<Method> specifiedMethodStack){
+                            Method currentSpecifiedMethod){
         this.bugReporter = bugReporter;
         this.currentLookIntoReturnResource = currentLookIntoReturnResource;
-        this.lookIntoReturnResourceStack = lookIntoReturnResourceStack;
         this.currentLevelCapturer = currentLevelCapturer;
-        this.capturerStatk = capturerStatk;
         this.currentLevelLastRegLoad = currentLevelLastRegLoad;
-        this.lastRegLoadStack = lastRegLoadStack;
         this.currentScanLevel = currentScanLevel;
-        this.scanLevelStack = scanLevelStack;
         this.currentSpecifiedMethod = currentSpecifiedMethod;
-        this.specifiedMethodStack = specifiedMethodStack;
     }
 
     private IAnalysisCache analysisCache = Global.getAnalysisCache();
@@ -65,19 +55,21 @@ public class BadResourceCheck extends BytecodeScanningDetector {
     /**
      * 加载所有定义的资源
      */
-    private static Set<Resource> resourceSet = ResourceFactory.listResources();
+    private static final Set<Resource> resourceSet = ResourceFactory.listResources();
+
+    private static final ResourceOperationDetector detector = new ResourceOperationDetector();
 
     /**
      * 通过类全限定名可以获得JavaClass的适配器
      */
-    private static AnalysisCacheToRepositoryAdapter adapter = new AnalysisCacheToRepositoryAdapter();
+    private static final AnalysisCacheToRepositoryAdapter adapter = new AnalysisCacheToRepositoryAdapter();
 
     /**
      * 用于存储lookInto的方法里面的返回值类型，如果是方法里面的资源类型，则返回，如果不是，返回null
      */
-    private Resource currentLookIntoReturnResource = null;
+    private Boolean currentLookIntoReturnResource = false;
 
-    private LinkedStack<Resource> lookIntoReturnResourceStack = new LinkedStack<>();
+    private static final LinkedStack<Boolean> lookIntoReturnResourceStack = new LinkedStack<>();
 
     /**
      * 当前层资源变量存储容器
@@ -87,24 +79,24 @@ public class BadResourceCheck extends BytecodeScanningDetector {
     /**
      * 存储所有层的lookIntoLevelTempCapturer
      */
-    private LinkedStack<ResourceInstanceCapturer> capturerStatk = new LinkedStack<>();
+    private static final LinkedStack<ResourceInstanceCapturer> capturerStatk = new LinkedStack<>();
 
     /**
      * 存储aload出来的变量
      */
     private Integer currentLevelLastRegLoad = null;
 
-    private LinkedStack<Integer> lastRegLoadStack = new LinkedStack<>();
+    private static final LinkedStack<Integer> lastRegLoadStack = new LinkedStack<>();
 
     /**
      * lookInto时被指定要扫描的方法
      */
-    private Method currentSpecifiedMethod = null;
+    private  Method currentSpecifiedMethod = null;
 
     /**
      * 用于存放多层lookInto时，指定扫描的方法的栈存储
      */
-    private LinkedStack<Method> specifiedMethodStack = new LinkedStack<>();
+    private static final LinkedStack<Method> specifiedMethodStack = new LinkedStack<>();
 
     /**
      * 原始层扫描的标记
@@ -122,13 +114,17 @@ public class BadResourceCheck extends BytecodeScanningDetector {
 
     private static final String CLOSE = "CLOSE";
 
+    private static final String WHITE = "WHITE";
+
+    private static final String BLACK = "BLACK";
+
 
     /**
      * 当前扫描层
      */
     private  int currentScanLevel = 0;
 
-    private LinkedStack<Integer> scanLevelStack = new LinkedStack<>();
+    private static final LinkedStack<Integer> scanLevelStack = new LinkedStack<>();
 
     @Override
     public void visit(Code obj) {
@@ -187,35 +183,43 @@ public class BadResourceCheck extends BytecodeScanningDetector {
                 String signature = getMethodDescriptorOperand().getSignature();
                 ResourceOperation targetOperation = new ResourceOperation(classConstantOperand, nameConstantOperand,signature);
 
-                Resource resourceOpen = isResourceOpenInvoke(targetOperation);
-                Resource resourceClose = isResourceCloseInvoke(targetOperation);
-
 
                 // 如果是开启资源的方法，则建立资源实例，存储到ResourceInstanceCapturer当中去
-                if(resourceOpen != null){
+                boolean resourceOpen = isResourceOpenInvoke(targetOperation);
+                if(resourceOpen){
                     int nextOpcode = getNextOpcode();
                     // (加一个前提条件后面的一个操作码不是ARETURN)
                     if(nextOpcode != ARETURN){
                         BugInstance bugInstance = new BugInstance(this,"RESOURCE_NOT_RELEASED",HIGH_PRIORITY)
                                 .addClassAndMethod(this).addSourceLine(this,getPC());
-                        ResourceInstance resourceInstance = new ResourceInstance(resourceOpen, null, bugInstance);
+                        ResourceInstance resourceInstance = new ResourceInstance(targetOperation.getInvolvedResourceForOpenInvoke(), null, bugInstance);
                         // 并且要把ResourceInstanceCapturer的valve打开，方便下个指令码扫描时，加入stackIndex
                         currentLevelCapturer.addInstance(resourceInstance);
                     }
 
-                    // 如果resource的OpenOperation里面没有，则加入
-                    ResourceFactory.appendAddMethod(resourceOpen, targetOperation);
-
+                    // 如果判定是Open方法,加入白名单中
+                    detector.appendOperation(targetOperation, OPEN, WHITE);
+                    return;
+                }else {
+                    // 如果判定不是Open方法，加入黑名单中
+                    detector.appendOperation(targetOperation, OPEN, BLACK);
                 }
 
+
                 // 如果是关闭资源的方法，则将资源从ResourceInstanceCapturer中去除，需要知道变量的statckIndex
-                if(resourceClose != null){
+                boolean resourceClose = isResourceCloseInvoke(targetOperation);
+                if(resourceClose){
                     currentLevelCapturer.removeInstance(currentLevelLastRegLoad);
                     currentLevelLastRegLoad = null;
 
-                    // 如果resource的CloseOperation里面没有，则加入
-                    ResourceFactory.appendDelMethod(resourceClose, targetOperation);
+                    // 如果判定是Close方法,加入白名单中
+                    detector.appendOperation(targetOperation, CLOSE, WHITE);
+                }else {
+                    // 如果判定不是Close方法,加入白名单中
+                    detector.appendOperation(targetOperation, CLOSE, BLACK);
                 }
+
+                return;
             }
         }
 
@@ -237,8 +241,7 @@ public class BadResourceCheck extends BytecodeScanningDetector {
                 int prevOpcode = getPrevOpcode(1);
                 boolean isLoad = OpcodeUtils.isLoad(prevOpcode);
                 if(isLoad){
-                    ResourceInstance resourceInstance = currentLevelCapturer.removeInstance(currentLevelLastRegLoad);
-                    currentLookIntoReturnResource = (resourceInstance != null)?resourceInstance.getResource():null;
+                    currentLookIntoReturnResource  = currentLevelCapturer.removeInstance(currentLevelLastRegLoad);
                     currentLevelLastRegLoad = null;
                 }
             }
@@ -252,32 +255,40 @@ public class BadResourceCheck extends BytecodeScanningDetector {
                 String signature = getMethodDescriptorOperand().getSignature();
                 ResourceOperation targetOperation = new ResourceOperation(classConstantOperand, nameConstantOperand,signature);
 
-                Resource resourceOpen = isResourceOpenInvoke(targetOperation);
-                Resource resourceClose = isResourceCloseInvoke(targetOperation);
-                if(resourceOpen != null){
+                boolean resourceOpen = isResourceOpenInvoke(targetOperation);
+                boolean resourceClose = isResourceCloseInvoke(targetOperation);
+                if(resourceOpen){
                     // 需要将资源对象存起来，等到方法走到返回的地方时
                     // 查看返回的对象statckIndex是否和记录下来的资源对象的statckIndex相匹配
                     // 如果相匹配，将资源对象的种类Resource存起来，怎么存？用栈结构存储
                     // 如果nextOpcode是ARETURN，则直接将Resource赋值给lookIntoResource
                     int nextOpcode = getNextOpcode();
                     if(nextOpcode != ARETURN){
-                        ResourceInstance instance = new ResourceInstance(resourceOpen, null, null);
+                        ResourceInstance instance = new ResourceInstance(targetOperation.getInvolvedResourceForOpenInvoke(), null, null);
                         currentLevelCapturer.addInstance(instance);
                     }else {
                         currentLookIntoReturnResource = resourceOpen;
                     }
 
-                    // 如果resource的CloseOperation里面没有，则加入
-                    ResourceFactory.appendAddMethod(resourceOpen, targetOperation);
+                    // 加入白名单
+                    detector.appendOperation(targetOperation, OPEN, WHITE);
+                    return;
+                }else {
+                    // 加入黑名单
+                    detector.appendOperation(targetOperation, OPEN, BLACK);
                 }
 
-                if (resourceClose != null) {
+                if (resourceClose) {
                     currentLevelCapturer.removeInstance(currentLevelLastRegLoad);
                     currentLevelLastRegLoad = null;
 
-                    // 如果resource的CloseOperation里面没有，则加入
-                    ResourceFactory.appendDelMethod(resourceClose, targetOperation);
+                    // 加入白名单
+                    detector.appendOperation(targetOperation, CLOSE, WHITE);
+                }else {
+                    detector.appendOperation(targetOperation, CLOSE, BLACK);
                 }
+
+                return;
             }
         }
 
@@ -295,8 +306,8 @@ public class BadResourceCheck extends BytecodeScanningDetector {
                 String signature = getMethodDescriptorOperand().getSignature();
                 ResourceOperation targetOperation = new ResourceOperation(classConstantOperand, nameConstantOperand,signature);
 
-                Resource resourceClose = isResourceCloseInvoke(targetOperation);
-                if (resourceClose != null) {
+                boolean resourceClose = isResourceCloseInvoke(targetOperation);
+                if (resourceClose) {
                     // 如果lastRegLoad=1，说明关闭的是参数里面的资源
                     if(currentSpecifiedMethod.isStatic()){
                         if(currentLevelLastRegLoad == 0){
@@ -308,8 +319,8 @@ public class BadResourceCheck extends BytecodeScanningDetector {
                         }
                     }
 
-                    // 如果resource的CloseOperation里面没有，则加入
-                    ResourceFactory.appendDelMethod(resourceClose, targetOperation);
+                    // 加入Close白名单
+                    detector.appendOperation(targetOperation, CLOSE, WHITE);
                 }
             }
         }
@@ -375,17 +386,22 @@ public class BadResourceCheck extends BytecodeScanningDetector {
      *
      * @return
      */
-    private Resource isResourceOpenInvoke(ResourceOperation targetOperation){
+    private boolean isResourceOpenInvoke(ResourceOperation targetOperation){
         // 如果在目前已有的方法库里面能够匹配到，则返回true，不然继续进一步判断
-        Resource tempResource = matchCurrentLibrary(targetOperation, OPEN);
-        if(tempResource != null){
-            return tempResource;
+        boolean inOpenWhiteList = detector.inNameList(targetOperation, OPEN, WHITE);
+        if(inOpenWhiteList){
+            return true;
         }
+        boolean inOpenBlackList = detector.inNameList(targetOperation, OPEN, BLACK);
+        if(inOpenBlackList){
+            return false;
+        }
+
         // 如果不像是资源开启方法，直接返回false
         if(likeResourceOpenInvoke(targetOperation)){
             return lookIntoMethodWraper(targetOperation,LOOK_INTO_FOR_OPEN_SCAN_LEVEL);
         }
-        return null;
+        return false;
     }
 
     /**
@@ -393,17 +409,22 @@ public class BadResourceCheck extends BytecodeScanningDetector {
      * @param targetOperation
      * @return
      */
-    private Resource isResourceCloseInvoke(ResourceOperation targetOperation){
+    private boolean isResourceCloseInvoke(ResourceOperation targetOperation){
         // 如果在目前已有的方法库里面能够匹配到，则返回true，不然继续进一步判断
-        Resource tempResource = matchCurrentLibrary(targetOperation, CLOSE);
-        if(tempResource != null){
-            return tempResource;
+        boolean inCloseWhiteList = detector.inNameList(targetOperation, CLOSE, WHITE);
+        if(inCloseWhiteList){
+            return true;
         }
+        boolean inCloseBlackList = detector.inNameList(targetOperation, CLOSE, BLACK);
+        if(inCloseWhiteList){
+            return false;
+        }
+
         // 思路同Open方法
         if(likeResourceCloseInvoke(targetOperation)){
             return lookIntoMethodWraper(targetOperation,LOOK_INTO_FOR_CLOSE_SCAN_LEVEL);
         }
-        return null;
+        return false;
     }
 
     /**
@@ -412,7 +433,7 @@ public class BadResourceCheck extends BytecodeScanningDetector {
      * @param scanLevel
      * @return
      */
-    private Resource lookIntoMethodWraper(ResourceOperation targetOperation, int scanLevel) {
+    private boolean lookIntoMethodWraper(ResourceOperation targetOperation, int scanLevel) {
         // 到方法内部看看，如果里面存在创建资源，且将资源作为返回结果的，则返回对应资源的种类，不然返回null
         // lookInto之前，要将lookIntoLevelTempCapturer以及currentLevelLastRegLoads进行入栈操作，
         capturerStatk.push(currentLevelCapturer);
@@ -421,7 +442,7 @@ public class BadResourceCheck extends BytecodeScanningDetector {
         specifiedMethodStack.push(currentSpecifiedMethod);
         scanLevelStack.push(currentScanLevel);
 
-        Resource resource = null;
+        boolean resource = false;
         try {
             resource = lookIntoMethod(targetOperation, scanLevel);
         } catch (Exception e) {
@@ -446,7 +467,7 @@ public class BadResourceCheck extends BytecodeScanningDetector {
      * @return
      */
     // lookInto之后，currentCapture要重新建立，lookInto结束之后，当前的currentCapture要销毁
-    private Resource lookIntoMethod(ResourceOperation targetOperation, Integer scanLevel) {
+    private boolean lookIntoMethod(ResourceOperation targetOperation, Integer scanLevel) {
         currentLevelCapturer = new ResourceInstanceCapturer();
         currentLevelLastRegLoad = null;
         currentLookIntoReturnResource = null;
@@ -461,62 +482,23 @@ public class BadResourceCheck extends BytecodeScanningDetector {
                     Code lookIntoCode = method.getCode();
                     currentScanLevel = scanLevel;
                     currentSpecifiedMethod = method;
-                    BadResourceCheck badResourceCheck = new BadResourceCheck(bugReporter, currentLookIntoReturnResource,
-                                                                             lookIntoReturnResourceStack,
-                                                                             currentLevelCapturer, capturerStatk,
-                                                                             currentLevelLastRegLoad, lastRegLoadStack,
-                                                                             currentScanLevel, scanLevelStack,
-                                                                             currentSpecifiedMethod,
-                                                                             specifiedMethodStack);
+                    BadResourceCheck badResourceCheck = new BadResourceCheck(bugReporter,
+                                                                             currentLookIntoReturnResource,
+                                                                             currentLevelCapturer,
+                                                                             currentLevelLastRegLoad,
+                                                                             currentScanLevel,
+                                                                             currentSpecifiedMethod);
                     badResourceCheck.visitClassContext(classContext);
 
-                    capturerStatk = badResourceCheck.capturerStatk;
-                    lastRegLoadStack = badResourceCheck.lastRegLoadStack;
-                    lookIntoReturnResourceStack = badResourceCheck.lookIntoReturnResourceStack;
-                    specifiedMethodStack = badResourceCheck.specifiedMethodStack;
-                    scanLevelStack = badResourceCheck.scanLevelStack;
 
                     // 如果是满足条件的资源开启或者关闭操作，则返回这个资源类型Resource
                     return badResourceCheck.currentLookIntoReturnResource;
                 }
             }
-            return null;
+            return false;
         } catch (Exception e) {
             LOGGER.warning("Check skipped! Class file not found:"+targetOperation.getClazzName()+".");
         }
-        return null;
-    }
-
-    /**
-     * 判断当前指令码是否是系统指定的资源OPEN或CLOSE操作，
-     * 如果是，返回资源的类型
-     * 如果不是，返回null
-     * @param targetOperation 目标操作
-     * @param operation ADD 或 DEL
-     * @return
-     */
-    private Resource matchCurrentLibrary(ResourceOperation targetOperation, String operation) {
-        // 遍历所有资源，进行方法匹配
-        for (Resource resource:resourceSet) {
-            // 如果是Open操作，扫描Open操作集合
-            if(OPEN == operation){
-                Set<ResourceOperation> addMethodSet = resource.getAddMethodSet();
-                for (ResourceOperation resourceOperation : addMethodSet) {
-                    if(resourceOperation.equals(targetOperation)){
-                        return resource;
-                    }
-                }
-            }
-            // 如果是Close操作，扫描Close操作集合
-            if(CLOSE == operation){
-                Set<ResourceOperation> delMethodSet = resource.getDelMethodSet();
-                for (ResourceOperation resourceOperation : delMethodSet) {
-                    if(resourceOperation.equals(targetOperation)){
-                        return resource;
-                    }
-                }
-            }
-        }
-        return null;
+        return false;
     }
 }

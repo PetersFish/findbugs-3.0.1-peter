@@ -90,4 +90,11 @@ public class Resource {
         Resource re = (Resource) obj;
         return this.className.equals(re.getClassName());
     }
+
+    @Override
+    public String toString() {
+        return "Resource{" +
+               "className='" + className + '\'' +
+               '}';
+    }
 }

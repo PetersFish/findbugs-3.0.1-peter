@@ -64,7 +64,7 @@ public class ResourceInstanceCapturer {
      * @param registerOperand
      * @return
      */
-    public ResourceInstance removeInstance(int registerOperand){
+    public boolean removeInstance(int registerOperand){
         // 遍历所有的resourceInstance，如果其stackIndex==registerOperand，则将其从集合中删除，
         // 如果没有遍历到，则返回false
         for (Iterator<ResourceInstance> iterator = instanceList.iterator();iterator.hasNext();) {
@@ -72,10 +72,10 @@ public class ResourceInstanceCapturer {
             Integer stackIndex = resourceInstance.getStackIndex();
             if(registerOperand == stackIndex){
                 iterator.remove();
-                return resourceInstance;
+                return true;
             }
         }
-        return null;
+        return false;
     }
 
     /**
