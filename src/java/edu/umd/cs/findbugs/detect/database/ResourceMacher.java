@@ -70,6 +70,9 @@ public class ResourceMacher{
         Set<Resource> resourceSet = ResourceFactory.listResources();
         Resource resource = new Resource(className);
         JavaClass aClass = adapter.findClass(className);
+        if (aClass == null) {
+            return null;
+        }
         if(resourceSet.contains(resource)){
             return resource;
         }
