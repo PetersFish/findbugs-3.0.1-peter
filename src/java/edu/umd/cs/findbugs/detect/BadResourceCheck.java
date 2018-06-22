@@ -6,20 +6,15 @@ import edu.umd.cs.findbugs.BugReporter;
 import edu.umd.cs.findbugs.BytecodeScanningDetector;
 import edu.umd.cs.findbugs.ba.ClassContext;
 import edu.umd.cs.findbugs.ba.SignatureParser;
-import edu.umd.cs.findbugs.bcel.BCELUtil;
 import edu.umd.cs.findbugs.classfile.*;
 import edu.umd.cs.findbugs.detect.database.*;
 import edu.umd.cs.findbugs.detect.database.container.LinkedStack;
-import edu.umd.cs.findbugs.util.IDUtils;
 import edu.umd.cs.findbugs.util.OpcodeUtils;
 import edu.umd.cs.findbugs.util.SignatureUtils;
 import org.apache.bcel.classfile.*;
-
-import java.util.ArrayList;
+import edu.umd.cs.findbugs.classfile.Global;
 import java.util.LinkedList;
-import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
 
 /**
@@ -182,6 +177,8 @@ public class BadResourceCheck extends BytecodeScanningDetector {
                 String nameConstantOperand = getNameConstantOperand();
                 String signature = getMethodDescriptorOperand().getSignature();
                 ResourceOperation targetOperation = new ResourceOperation(classConstantOperand, nameConstantOperand,signature);
+                String openClassName = SignatureUtils.getObjectReturnTypeClassName(signature);
+
 
 
                 // 如果是开启资源的方法，则建立资源实例，存储到ResourceInstanceCapturer当中去
@@ -198,25 +195,30 @@ public class BadResourceCheck extends BytecodeScanningDetector {
                     }
 
                     // 如果判定是Open方法,加入白名单中
-                    detector.appendOperation(targetOperation, OPEN, WHITE);
+                    if (openClassName != null) {
+                        detector.appendOperation(openClassName, targetOperation, OPEN, WHITE);
+                    }
                     return;
                 }else {
                     // 如果判定不是Open方法，加入黑名单中
-                    detector.appendOperation(targetOperation, OPEN, BLACK);
+                    detector.appendOperation(OPEN, targetOperation, OPEN, BLACK);
                 }
 
 
                 // 如果是关闭资源的方法，则将资源从ResourceInstanceCapturer中去除，需要知道变量的statckIndex
+                String closeClassName = SignatureUtils.getObjectParamClassName(signature);
                 boolean resourceClose = isResourceCloseInvoke(targetOperation);
                 if(resourceClose){
                     currentLevelCapturer.removeInstance(currentLevelLastRegLoad);
                     currentLevelLastRegLoad = null;
 
                     // 如果判定是Close方法,加入白名单中
-                    detector.appendOperation(targetOperation, CLOSE, WHITE);
+                    if (closeClassName != null) {
+                        detector.appendOperation(closeClassName, targetOperation, CLOSE, WHITE);
+                    }
                 }else {
                     // 如果判定不是Close方法,加入白名单中
-                    detector.appendOperation(targetOperation, CLOSE, BLACK);
+                    detector.appendOperation(CLOSE,targetOperation, CLOSE, BLACK);
                 }
 
                 return;
@@ -254,9 +256,11 @@ public class BadResourceCheck extends BytecodeScanningDetector {
                 String nameConstantOperand = getNameConstantOperand();
                 String signature = getMethodDescriptorOperand().getSignature();
                 ResourceOperation targetOperation = new ResourceOperation(classConstantOperand, nameConstantOperand,signature);
+                String openClassName = SignatureUtils.getObjectReturnTypeClassName(signature);
+
 
                 boolean resourceOpen = isResourceOpenInvoke(targetOperation);
-                boolean resourceClose = isResourceCloseInvoke(targetOperation);
+
                 if(resourceOpen){
                     // 需要将资源对象存起来，等到方法走到返回的地方时
                     // 查看返回的对象statckIndex是否和记录下来的资源对象的statckIndex相匹配
@@ -271,21 +275,28 @@ public class BadResourceCheck extends BytecodeScanningDetector {
                     }
 
                     // 加入白名单
-                    detector.appendOperation(targetOperation, OPEN, WHITE);
+                    if (openClassName != null) {
+                        detector.appendOperation(openClassName, targetOperation, OPEN, WHITE);
+                    }
                     return;
                 }else {
                     // 加入黑名单
-                    detector.appendOperation(targetOperation, OPEN, BLACK);
+                    detector.appendOperation(null, targetOperation, OPEN, BLACK);
                 }
+
+                String closeClassName = SignatureUtils.getObjectParamClassName(signature);
+                boolean resourceClose = isResourceCloseInvoke(targetOperation);
 
                 if (resourceClose) {
                     currentLevelCapturer.removeInstance(currentLevelLastRegLoad);
                     currentLevelLastRegLoad = null;
 
                     // 加入白名单
-                    detector.appendOperation(targetOperation, CLOSE, WHITE);
+                    if (openClassName != null) {
+                        detector.appendOperation(openClassName, targetOperation, CLOSE, WHITE);
+                    }
                 }else {
-                    detector.appendOperation(targetOperation, CLOSE, BLACK);
+                    detector.appendOperation(CLOSE, targetOperation, CLOSE, BLACK);
                 }
 
                 return;
@@ -305,6 +316,8 @@ public class BadResourceCheck extends BytecodeScanningDetector {
                 String nameConstantOperand = getNameConstantOperand();
                 String signature = getMethodDescriptorOperand().getSignature();
                 ResourceOperation targetOperation = new ResourceOperation(classConstantOperand, nameConstantOperand,signature);
+                String closeClassName = SignatureUtils.getObjectParamClassName(signature);
+
 
                 boolean resourceClose = isResourceCloseInvoke(targetOperation);
                 if (resourceClose) {
@@ -320,7 +333,11 @@ public class BadResourceCheck extends BytecodeScanningDetector {
                     }
 
                     // 加入Close白名单
-                    detector.appendOperation(targetOperation, CLOSE, WHITE);
+                    if (closeClassName != null) {
+                        detector.appendOperation(closeClassName, targetOperation, CLOSE, WHITE);
+                    }
+                }else {
+                    detector.appendOperation(CLOSE, targetOperation, CLOSE, BLACK);
                 }
             }
         }
@@ -373,7 +390,7 @@ public class BadResourceCheck extends BytecodeScanningDetector {
             return false;
         }
         String argument = arguments[0];
-        String className = SignatureUtils.getObjectParamClassName(argument);
+        String className = SignatureUtils.trimArgument(argument);
         if (className != null) {
             ResourceMacher macher = new ResourceMacher(className);
             return macher.matches();
@@ -388,11 +405,11 @@ public class BadResourceCheck extends BytecodeScanningDetector {
      */
     private boolean isResourceOpenInvoke(ResourceOperation targetOperation){
         // 如果在目前已有的方法库里面能够匹配到，则返回true，不然继续进一步判断
-        boolean inOpenWhiteList = detector.inNameList(targetOperation, OPEN, WHITE);
+        boolean inOpenWhiteList = detector.inOpenWhiteList(targetOperation);
         if(inOpenWhiteList){
             return true;
         }
-        boolean inOpenBlackList = detector.inNameList(targetOperation, OPEN, BLACK);
+        boolean inOpenBlackList = detector.inOpenBlackList(targetOperation);
         if(inOpenBlackList){
             return false;
         }
@@ -411,11 +428,11 @@ public class BadResourceCheck extends BytecodeScanningDetector {
      */
     private boolean isResourceCloseInvoke(ResourceOperation targetOperation){
         // 如果在目前已有的方法库里面能够匹配到，则返回true，不然继续进一步判断
-        boolean inCloseWhiteList = detector.inNameList(targetOperation, CLOSE, WHITE);
+        boolean inCloseWhiteList = detector.inCloseWhitList(targetOperation);
         if(inCloseWhiteList){
             return true;
         }
-        boolean inCloseBlackList = detector.inNameList(targetOperation, CLOSE, BLACK);
+        boolean inCloseBlackList = detector.inCloseBlackList(targetOperation);
         if(inCloseWhiteList){
             return false;
         }

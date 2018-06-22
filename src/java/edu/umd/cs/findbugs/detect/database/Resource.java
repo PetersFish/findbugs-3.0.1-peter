@@ -1,13 +1,14 @@
 package edu.umd.cs.findbugs.detect.database;
 
+import edu.umd.cs.findbugs.AnalysisCacheToRepositoryAdapter;
 import edu.umd.cs.findbugs.ba.ObjectTypeFactory;
 import edu.umd.cs.findbugs.internalAnnotations.DottedClassName;
+import org.apache.bcel.classfile.JavaClass;
 import org.apache.bcel.generic.ObjectType;
+import org.apache.bcel.util.SyntheticRepository;
 
 import java.util.HashSet;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentSkipListSet;
 
 /**
  * 代表资源的类
@@ -37,7 +38,7 @@ public class Resource {
     private final Set<ResourceOperation> delMethodSet;
 
     public Resource(String className) {
-        this.className = className;
+        this.className = className.replaceAll("/",".");
         this.type = ObjectTypeFactory.getInstance(className);
         this.addMethodSet = new HashSet<>();
         this.delMethodSet = new HashSet<>();

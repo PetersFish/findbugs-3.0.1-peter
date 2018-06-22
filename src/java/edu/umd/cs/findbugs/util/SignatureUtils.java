@@ -26,21 +26,43 @@ public class SignatureUtils {
     }
 
     public static boolean isObjectParam(String signature){
-        return signature.startsWith("L");
+        SignatureParser parser = new SignatureParser(signature);
+        String parameter = parser.getParameter(0);
+        return parameter.startsWith("L");
+    }
+
+    public static boolean isSingleParam(String signature){
+        SignatureParser parser = new SignatureParser(signature);
+        int numParameters = parser.getNumParameters();
+        if(numParameters == 1){
+            return true;
+        }
+        return false;
     }
 
     public static String getObjectParamClassName(String signature){
-        if(isObjectParam(signature)){
-            return signature.substring(1,signature.length()-1);
+        if(isSingleParam(signature)&&isObjectParam(signature)){
+            SignatureParser parser = new SignatureParser(signature);
+            String parameter = parser.getParameter(0);
+            return parameter.substring(1,parameter.length()-1).replace("/",".");
         }
         return null;
+    }
+
+    public static String trimArgument(String arg){
+        return arg.substring(1,arg.length()-1).replace("/",".");
+    }
+
+    public static String getReturnType(String signature){
+        SignatureParser parser = new SignatureParser(signature);
+        return parser.getReturnTypeSignature();
     }
 
     public static String getObjectReturnTypeClassName(String signature) {
         SignatureParser parser = new SignatureParser(signature);
         String returnTypeSignature = parser.getReturnTypeSignature();
         if(returnTypeSignature.startsWith("L")){
-            return returnTypeSignature.substring(1, returnTypeSignature.length() - 1);
+            return returnTypeSignature.substring(1, returnTypeSignature.length() - 1).replace("/",".");
         }
         return null;
     }

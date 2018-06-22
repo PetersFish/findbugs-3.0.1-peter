@@ -1,5 +1,7 @@
 package edu.umd.cs.findbugs.detect.database;
 
+import edu.umd.cs.findbugs.util.SignatureUtils;
+
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -24,14 +26,15 @@ public class ResourceOperationDetector {
     private static final String CLOSE = "CLOSE";
     private static final String WHITE = "WHITE";
     private static final String BLACK = "BLACK";
+    private static final String OBJECT = "java.lang.Object";
 
-    private Map<Resource,Set<ResourceOperation>> openWhiteMap;
+    private Map<String,Set<ResourceOperation>> openWhiteMap;
 
-    private Map<Resource,Set<ResourceOperation>> closeWhiteMap;
+    private Map<String,Set<ResourceOperation>> closeWhiteMap;
 
-    private Map<Resource,Set<ResourceOperation>> openBlackMap;
+    private Map<String,Set<ResourceOperation>> openBlackMap;
 
-    private Map<Resource,Set<ResourceOperation>> closeBlackMap;
+    private Map<String,Set<ResourceOperation>> closeBlackMap;
 
     /**
      * 将ResourceFactory里面的规则都导入到白名单中
@@ -43,10 +46,10 @@ public class ResourceOperationDetector {
             Set<ResourceOperation> delMethodSet = resource.getDelMethodSet();
             // 将addMethodSet和delMethodSet中的operation都加入到相应的白名单
             for (ResourceOperation operation : addMethodSet) {
-                appendOperation(operation,OPEN,WHITE);
+                appendOperation(resource.getClassName(),operation,OPEN,WHITE);
             }
             for (ResourceOperation operation : delMethodSet) {
-                appendOperation(operation,CLOSE,WHITE);
+                appendOperation(resource.getClassName(),operation,CLOSE,WHITE);
             }
         }
     }
@@ -57,11 +60,9 @@ public class ResourceOperationDetector {
      * @param operationType
      * @param whiteOrBlack
      */
-    public void appendOperation(ResourceOperation operation, String operationType, String whiteOrBlack){
+    public void appendOperation(String resource, ResourceOperation operation, String operationType, String whiteOrBlack){
 
-        String clazzName = operation.getClazzName();
-        Resource resource = new Resource(clazzName);
-        Map<Resource,Set<ResourceOperation>> tempMap = null;
+        Map<String,Set<ResourceOperation>> tempMap = null;
 
         if(OPEN.equals(operationType)&&WHITE.equals(whiteOrBlack)){
             tempMap = openWhiteMap;
@@ -83,33 +84,57 @@ public class ResourceOperationDetector {
         }
     }
 
-    /**
-     * 判断是否在清单里面
-     *
-     * @param targetOperation
-     * @param operationType
-     * @param whiteOrBlack
-     * @return
-     */
-    public boolean inNameList(ResourceOperation targetOperation, String operationType, String whiteOrBlack) {
-        String clazzName = targetOperation.getClazzName();
-        Resource resource = new Resource(clazzName);
-        Map<Resource,Set<ResourceOperation>> tempMap = null;
+    public boolean inOpenWhiteList(ResourceOperation targetOperation){
+        String openClassName = SignatureUtils.getObjectReturnTypeClassName(targetOperation.getSignature());
+        if (openClassName == null) {
+            openClassName = targetOperation.getClazzName();
+        }
+        return inList(targetOperation, openClassName, openWhiteMap);
+    }
 
-        if(OPEN.equals(operationType)&&WHITE.equals(whiteOrBlack)){
-            tempMap = openWhiteMap;
-        }else if (OPEN.equals(operationType)&&BLACK.equals(whiteOrBlack)){
-            tempMap = openBlackMap;
-        }else if (CLOSE.equals(operationType)&&WHITE.equals(whiteOrBlack)){
-            tempMap = closeWhiteMap;
-        }else if (CLOSE.equals(operationType)&&BLACK.equals(whiteOrBlack)){
-            tempMap = closeBlackMap;
+    private boolean inList(ResourceOperation targetOperation, String openClassName, Map<String,Set<ResourceOperation>> map) {
+        ResourceMacher macher = new ResourceMacher(openClassName);
+        Resource resource = macher.resourceMatched();
+
+        if (resource != null&&!OBJECT.equals(resource.getClassName())) {
+            Set<ResourceOperation> operations = map.get(resource.getClassName());
+            if (operations.contains(targetOperation)){
+                return true;
+            }
+            for (ResourceOperation operation : operations) {
+                if(targetOperation.match(operation)){
+                    return true;
+                }
+            }
         }
 
-        if(tempMap.containsKey(resource)){
-            Set<ResourceOperation> operationSet = tempMap.get(resource);
-            return operationSet.contains(targetOperation);
-        }
         return false;
+    }
+
+    public boolean inOpenBlackList(ResourceOperation targetOperation){
+        Set<ResourceOperation> operations = openBlackMap.get(OPEN);
+        if (operations == null) {
+            openBlackMap.put(OPEN,new HashSet<ResourceOperation>());
+            return false;
+        }
+        return operations.contains(targetOperation);
+    }
+
+    public boolean inCloseWhitList(ResourceOperation targetOperation){
+        String closeClassName = SignatureUtils.getObjectParamClassName(targetOperation.getSignature());
+        if (closeClassName == null) {
+            closeClassName = targetOperation.getClazzName();
+        }
+        return inList(targetOperation, closeClassName, closeWhiteMap);
+    }
+
+
+    public boolean inCloseBlackList(ResourceOperation targetOperation){
+        Set<ResourceOperation> operations = closeBlackMap.get(CLOSE);
+        if (operations == null) {
+            closeBlackMap.put(CLOSE,new HashSet<ResourceOperation>());
+            return false;
+        }
+        return operations.contains(targetOperation);
     }
 }

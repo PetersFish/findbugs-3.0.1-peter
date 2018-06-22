@@ -1,17 +1,81 @@
 <Resources xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
            xsi:noNamespaceSchemaLocation="resource.xsd">
-    <Resource className="java.io.FileOutputStream"><!-- 资源的全限定名 -->
+    <Resource className="java.io.FileOutputStream">
         <addMethods>
-            <!-- 开启资源方法的className（类名）methodName（方法名）methodSignature（参数和返回值类型） -->
             <addMethod className="java.io.FileOutputStream" methodName="&lt;init&gt;"
                        methodSignature="(Ljava/lang/String;)V"/>
         </addMethods>
         <delMethods>
-            <!-- 关闭资源方法的className（类名）methodName（方法名）methodSignature（参数和返回值类型） -->
             <delMethod className="java.io.FileOutputStream" methodName="close"
-                      methodSignature="()V"/>
+                       methodSignature="()V"/>
             <delMethod className="java.io.OutputStream" methodName="close"
-                      methodSignature="()V"/>
+                       methodSignature="()V"/>
+            <delMethod className="java.util.logging.StreamHandler" methodName="setOutputStream"
+                       methodSignature="(Ljava/io/OutputStream;)V"/>
+            <delMethod className="java.io.FileOutputStream" methodName="getChannel"
+                       methodSignature="()Ljava/nio/channels/FileChannel;"/>
+        </delMethods>
+    </Resource>
+    <Resource className="java.io.FileInputStream">
+        <addMethods>
+            <addMethod className="java.io.FileInputStream" methodName="&lt;init&gt;"
+                       methodSignature="(Ljava/lang/String;)V"/>
+            <addMethod className="java.lang.Class" methodName="getResourceAsStream"
+                       methodSignature="(Ljava/lang/String;)Ljava/io/InputStream;"/>
+
+        </addMethods>
+        <delMethods>
+            <delMethod className="java.io.FileInputStream" methodName="close" methodSignature="()V"/>
+            <delMethod className="java.io.InputStream" methodName="close" methodSignature="()V"/>
+            <delMethod className="java.io.FileInputStream" methodName="getChannel"
+                       methodSignature="()Ljava/nio/channels/FileChannel;"/>
+        </delMethods>
+    </Resource>
+    <Resource className="java.sql.Connection">
+        <addMethods>
+            <addMethod className="java.sql.DriverManager" methodName="getConnection"
+                       methodSignature="(Ljava/lang/String;)Ljava/sql/Connection;"/>
+            <addMethod className="java.sql.DriverManager" methodName="getConnection"
+                       methodSignature="(Ljava/lang/String;Ljava.util.Properties;)Ljava/sql/Connection;"/>
+            <addMethod className="java.sql.DriverManager" methodName="getConnection"
+                       methodSignature="(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Ljava/sql/Connection;"/>
+        </addMethods>
+        <delMethods>
+            <delMethod className="java.sql.Connection" methodName="close" methodSignature="()V"/>
+        </delMethods>
+    </Resource>
+    <Resource className="java.sql.Statement">
+        <addMethods>
+            <addMethod className="java.sql.Connection" methodName="createStatement"
+                       methodSignature="()Ljava/sql/Statement;"/>
+            <addMethod className="java.sql.Connection" methodName="createStatement"
+                       methodSignature="(II)Ljava/sql/Statement;"/>
+            <addMethod className="java.sql.Connection" methodName="createStatement"
+                       methodSignature="(III)Ljava/sql/Statement;"/>
+            <addMethod className="java.sql.Connection" methodName="prepareStatement"
+                       methodSignature="(Ljava/lang/String;)Ljava/sql/Statement;"/>
+            <addMethod className="java.sql.Connection" methodName="prepareStatement"
+                       methodSignature="(Ljava/lang/String;I)Ljava/sql/Statement;"/>
+            <addMethod className="java.sql.Connection" methodName="prepareStatement"
+                       methodSignature="(Ljava/lang/String;[I)Ljava/sql/Statement;"/>
+            <addMethod className="java.sql.Connection" methodName="prepareStatement"
+                       methodSignature="(Ljava/lang/String;II)Ljava/sql/Statement;"/>
+            <addMethod className="java.sql.Connection" methodName="prepareStatement"
+                       methodSignature="(Ljava/lang/String;III)Ljava/sql/Statement;"/>
+            <addMethod className="java.sql.Connection" methodName="prepareStatement"
+                       methodSignature="(Ljava/lang/String;[Ljava/lang/String;)Ljava/sql/Statement;"/>
+        </addMethods>
+        <delMethods>
+            <delMethod className="java.sql.Statement" methodName="close" methodSignature="()V"/>
+        </delMethods>
+    </Resource>
+    <Resource className="java.sql.ResultSet">
+        <addMethods>
+            <addMethod className="java.sql.Statement" methodName="executeQuery"
+                       methodSignature="(Ljava/lang/String;)Ljava/sql/ResultSet;"/>
+        </addMethods>
+        <delMethods>
+            <delMethod className="java.sql.ResultSet" methodName="close" methodSignature="()V"/>
         </delMethods>
     </Resource>
 </Resources>
