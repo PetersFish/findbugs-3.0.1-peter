@@ -651,7 +651,7 @@ reporting detectors have completed.
     <!--       new detector added by peter          -->
     <!--============================================-->
     <Detector class="edu.umd.cs.findbugs.detect.BadResourceCheck" speed="fast" reports="RESOURCE_NOT_RELEASED"
-              hidden="false"/>
+              />
 
     <!-- Bug Categories -->
     <BugCategory category="NOISE" hidden="true"/>

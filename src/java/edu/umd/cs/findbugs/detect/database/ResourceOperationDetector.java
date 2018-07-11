@@ -54,6 +54,8 @@ public class ResourceOperationDetector {
         }
     }
 
+
+
     /**
      * 追加operation的白名单或黑名单
      * @param operation

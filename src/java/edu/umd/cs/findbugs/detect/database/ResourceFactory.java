@@ -25,17 +25,91 @@ public class ResourceFactory {
 
     private static final Logger LOGGER = Logger.getLogger(ResourceFactory.class.getName());
 
+    private static Integer MAX_LOOK_INTO_LEVEL = 2;
+
     private static final Set<Resource> resourceSet;
 
     // 初始化所有资源，将生成的资源放入resourceSet
     static {
         resourceSet = new HashSet<>();
         loadResources();
-//        Resource outputStream = new Resource("java.io.FileOutputStream");
-//        outputStream.appendAddMethod(new ResourceOperation("java.io.FileOutputStream","<init>","(Ljava/lang/String;)V"));
-//        outputStream.appendDelMethod(new ResourceOperation("java.io.FileOutputStream","close","()V"));
-//        outputStream.appendDelMethod(new ResourceOperation("java.io.OutputStream","close","()V"));
-//        addResource(outputStream);
+    }
+
+    public static Set<Resource> listResources(){
+        return resourceSet;
+    }
+
+    /**
+     * 判断字符串是否包含资源，包含则资源相关
+     * @param sig
+     * @return
+     */
+    public static boolean signatureInvovlesResource(String sig){
+        sig = sig.replaceAll("/",".").replaceAll("java.io.File", "java.io.");
+        for (Resource resource : resourceSet) {
+            if(sig.indexOf(resource.getClassName()) >= 0){
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * 判断操作是否资源相关
+     * @param operation
+     * @return
+     */
+    public static boolean operationInvolvesResource(ResourceOperation operation){
+        if(signatureInvovlesResource(operation.getClazzName())){
+            return true;
+        }
+        if(signatureInvovlesResource(operation.getSignature())){
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * 给指定资源类型添加Open方法
+     * @param resource
+     * @param operation
+     * @return
+     */
+    public static boolean appendAddMethod(Resource resource, ResourceOperation operation){
+        for (Resource tempResource : resourceSet) {
+            if(tempResource.getClassName().equals(resource.getClassName())){
+                return tempResource.appendAddMethod(operation);
+            }
+        }
+        return false;
+    }
+
+    /**
+     * 给指定资源类型添加Close方法
+     * @param resource
+     * @param operation
+     * @return
+     */
+    public static boolean appendDelMethod(Resource resource, ResourceOperation operation){
+        for (Resource tempResource : resourceSet) {
+            if(tempResource.getClassName().equals(resource.getClassName())){
+                return tempResource.appendDelMethod(operation);
+            }
+        }
+        return false;
+    }
+
+    public static void appendCustomResource(String customResource){
+        try {
+            if(StringUtils.isBlank(customResource)){
+                return;
+            }
+            SAXReader saxReader = new SAXReader();
+            Document document = saxReader.read(new StringReader(customResource));
+            extractResource(document);
+        } catch (Exception e) {
+            LOGGER.warning("The custom resources are not configed in the right way. Please check it! ");
+        }
     }
 
     private static Resource addResource(Resource resource) {
@@ -50,7 +124,7 @@ public class ResourceFactory {
         return resource;
     }
 
-    public static void loadResources(){
+    private static void loadResources(){
         try {
             InputStream inputStream = ResourceFactory.class.getResourceAsStream("/custom/resource.xml");
             SAXReader saxReader = new SAXReader();
@@ -60,19 +134,6 @@ public class ResourceFactory {
             LOGGER.warning("Incorrect resource config file.");
         } catch (Exception e){
             LOGGER.warning("File not found.");
-        }
-    }
-
-    public static void appendCustomResource(String customResource){
-        try {
-            if(StringUtils.isBlank(customResource)){
-                return;
-            }
-            SAXReader saxReader = new SAXReader();
-            Document document = saxReader.read(new StringReader(customResource));
-            extractResource(document);
-        } catch (Exception e) {
-            LOGGER.warning("The custom resources are not configed in the right way. Please check it! ");
         }
     }
 
@@ -102,32 +163,12 @@ public class ResourceFactory {
         }
     }
 
-    public static Set<Resource> listResources(){
-        return resourceSet;
+    public static Integer getMaxLookIntoLevel() {
+        return MAX_LOOK_INTO_LEVEL;
     }
 
-    /**
-     * 给指定资源类型添加Open方法
-     * @param resource
-     * @param operation
-     * @return
-     */
-    public static boolean appendAddMethod(Resource resource, ResourceOperation operation){
-        for (Resource tempResource : resourceSet) {
-            if(tempResource.getClassName().equals(resource.getClassName())){
-                return tempResource.appendAddMethod(operation);
-            }
-        }
-        return false;
-    }
-
-    public static boolean appendDelMethod(Resource resource, ResourceOperation operation){
-        for (Resource tempResource : resourceSet) {
-            if(tempResource.getClassName().equals(resource.getClassName())){
-                return tempResource.appendDelMethod(operation);
-            }
-        }
-        return false;
+    public static void setMaxLookIntoLevel(Integer maxLookIntoLevel) {
+        MAX_LOOK_INTO_LEVEL = maxLookIntoLevel;
     }
 
     public static void main(String[] args) {

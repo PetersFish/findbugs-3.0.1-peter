@@ -1,0 +1,54 @@
+<Resources xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+           xsi:noNamespaceSchemaLocation="resource.xsd">
+    <Resource className="com.documentum.fc.client.IDfSession">
+        <addMethods>
+            <addMethod className="com.documentum.fc.client.IDfSessionManager" methodName="newSession"
+                       methodSignature="(Ljava/lang/String;)Lcom/documentum/fc.client/IDfSession;"/>
+        </addMethods>
+        <delMethods>
+            <delMethod className="com.documentum.fc.client.IDfSessionManager" methodName="release"
+                       methodSignature="(Lcom/documentum/fc/client/IDfSession;)V"/>
+        </delMethods>
+    </Resource>
+    <Resource className="com.documentum.fc.client.IDfCollection">
+        <addMethods>
+            <addMethod className="com.documentum.fc.client.IDfQuery" methodName="execute"
+                       methodSignature="(Lcom/documentum/fc/client/IDfSession;I)Lcom/documentum/fc/client/IDfCollection;"/>
+        </addMethods>
+        <delMethods>
+            <delMethod className="com.documentum.fc.client.IDfCollection" methodName="close"
+                       methodSignature="()V"/>
+        </delMethods>
+    </Resource>
+    <Resource className="java.io.OutputStream">
+        <addMethods>
+            <addMethod className="java.io.FileOutputStream" methodName="&lt;init&gt;"
+                       methodSignature="(Ljava/lang/String;)V"/>
+        </addMethods>
+        <delMethods>
+            <delMethod className="java.io.FileOutputStream" methodName="close"
+                       methodSignature="()V"/>
+            <delMethod className="java.io.OutputStream" methodName="close"
+                       methodSignature="()V"/>
+            <delMethod className="java.util.logging.StreamHandler" methodName="setOutputStream"
+                       methodSignature="(Ljava/io/OutputStream;)V"/>
+            <delMethod className="java.io.FileOutputStream" methodName="getChannel"
+                       methodSignature="()Ljava/nio/channels/FileChannel;"/>
+        </delMethods>
+    </Resource>
+    <Resource className="java.io.InputStream">
+        <addMethods>
+            <addMethod className="java.io.FileInputStream" methodName="&lt;init&gt;"
+                       methodSignature="(Ljava/lang/String;)V"/>
+            <addMethod className="java.lang.Class" methodName="getResourceAsStream"
+                       methodSignature="(Ljava/lang/String;)Ljava/io/InputStream;"/>
+
+        </addMethods>
+        <delMethods>
+            <delMethod className="java.io.FileInputStream" methodName="close" methodSignature="()V"/>
+            <delMethod className="java.io.InputStream" methodName="close" methodSignature="()V"/>
+            <delMethod className="java.io.FileInputStream" methodName="getChannel"
+                       methodSignature="()Ljava/nio/channels/FileChannel;"/>
+        </delMethods>
+    </Resource>
+</Resources>

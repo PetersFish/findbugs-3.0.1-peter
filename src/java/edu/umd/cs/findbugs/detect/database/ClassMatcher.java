@@ -17,9 +17,12 @@ public class ClassMatcher {
 
     private static final Logger LOGGER = Logger.getLogger(BadResourceCheck.class.getName());
 
-    public static boolean matches(@Nonnull String className1, @Nonnull String className2){
+    public static boolean matches(String className1, String className2){
         JavaClass aClass1 = adapter.findClass(className1);
         JavaClass aClass2 = adapter.findClass(className2);
+        if(aClass1 == null||aClass2 == null){
+            return false;
+        }
         try {
             return aClass1.instanceOf(aClass2)||aClass2.instanceOf(aClass1);
         } catch (ClassNotFoundException e) {

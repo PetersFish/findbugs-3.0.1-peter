@@ -26,6 +26,9 @@ public class ResourceMacher{
 
     private static final Logger LOGGER = Logger.getLogger(BadResourceCheck.class.getName());
 
+    private static final String OBJECT_SLASH = "java/lang/Object";
+    private static final String OBJECT_DOT = "java.lang.Object";
+
     public ResourceMacher(String className){
         this.className = className;
         this.type = BCELUtil.getObjectTypeInstance(className);
@@ -38,6 +41,9 @@ public class ResourceMacher{
     }
 
     public boolean matches(){
+        if(OBJECT_SLASH.equals(className)||OBJECT_DOT.equals(className)){
+            return false;
+        }
         Set<Resource> resourceSet = ResourceFactory.listResources();
         Resource resource = new Resource(className);
         JavaClass aClass = adapter.findClass(className);
@@ -51,8 +57,6 @@ public class ResourceMacher{
         for (Resource r : resourceSet) {
             try {
                 JavaClass tempClass = adapter.findClass(r.getClassName());
-//                LOGGER.warning("aClass:"+aClass+":"+className);
-//                LOGGER.warning("tempClass:"+tempClass+":"+r.getClassName());
                 if (tempClass == null) {
                     continue;
                 }
@@ -67,6 +71,9 @@ public class ResourceMacher{
     }
 
     public Resource resourceMatched(){
+        if(OBJECT_SLASH.equals(className)||OBJECT_DOT.equals(className)){
+            return null;
+        }
         Set<Resource> resourceSet = ResourceFactory.listResources();
         Resource resource = new Resource(className);
         JavaClass aClass = adapter.findClass(className);
@@ -80,7 +87,7 @@ public class ResourceMacher{
             for (Resource r : resourceSet) {
                 JavaClass tempClass = adapter.findClass(r.getClassName());
                 if (tempClass == null) {
-                    return null;
+                    continue;
                 }
                 if(tempClass.instanceOf(aClass)||aClass.instanceOf(tempClass)){
                     return r;

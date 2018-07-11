@@ -1,0 +1,23 @@
+<Resources xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+           xsi:noNamespaceSchemaLocation="resource.xsd">
+    <Resource className="com.documentum.fc.client.IDfSession">
+        <addMethods>
+            <addMethod className="com.documentum.fc.client.IDfSessionManager" methodName="newSession"
+                       methodSignature="(Ljava/lang/String;)Lcom/documentum/fc.client/IDfSession;"/>
+        </addMethods>
+        <delMethods>
+            <delMethod className="com.documentum.fc.client.IDfSessionManager" methodName="release"
+                       methodSignature="(Lcom/documentum/fc/client/IDfSession;)V"/>
+        </delMethods>
+    </Resource>
+    <Resource className="com.documentum.fc.client.IDfCollection">
+        <addMethods>
+            <addMethod className="com.documentum.fc.client.IDfQuery" methodName="execute"
+                       methodSignature="(Lcom/documentum/fc/client/IDfSession;I)Lcom/documentum/fc/client/IDfCollection;"/>
+        </addMethods>
+        <delMethods>
+            <delMethod className="com.documentum.fc.client.IDfCollection" methodName="close"
+                       methodSignature="()V"/>
+        </delMethods>
+    </Resource>
+</Resources>

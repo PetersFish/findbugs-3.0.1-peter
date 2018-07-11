@@ -17,10 +17,12 @@ public class ResourceOperation {
 
     private final String signature;
 
+    private static final String INIT_METHOD = "<init>";
+
     public ResourceOperation(String clazzName, String methodName, String methodDescription) {
-        this.clazzName = clazzName.replaceAll("/", ".");
+        this.clazzName = clazzName.replaceAll("\\.", "/");
         this.methodName = methodName;
-        this.signature = methodDescription;
+        this.signature = methodDescription.replaceAll("\\.", "/");
     }
 
     public boolean match(ResourceOperation operation) {
@@ -36,6 +38,9 @@ public class ResourceOperation {
         String className = SignatureUtils.getObjectReturnTypeClassName(signature);
         if (StringUtils.isNotBlank(className)) {
             return new Resource(className);
+        }
+        if(INIT_METHOD.equals(methodName)){
+            return new Resource(clazzName);
         }
         return null;
     }

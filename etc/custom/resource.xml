@@ -1,6 +1,6 @@
 <Resources xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
            xsi:noNamespaceSchemaLocation="resource.xsd">
-    <Resource className="java.io.FileOutputStream">
+    <!--<Resource className="java.io.OutputStream">
         <addMethods>
             <addMethod className="java.io.FileOutputStream" methodName="&lt;init&gt;"
                        methodSignature="(Ljava/lang/String;)V"/>
@@ -16,7 +16,7 @@
                        methodSignature="()Ljava/nio/channels/FileChannel;"/>
         </delMethods>
     </Resource>
-    <Resource className="java.io.FileInputStream">
+    <Resource className="java.io.InputStream">
         <addMethods>
             <addMethod className="java.io.FileInputStream" methodName="&lt;init&gt;"
                        methodSignature="(Ljava/lang/String;)V"/>
@@ -29,6 +29,26 @@
             <delMethod className="java.io.InputStream" methodName="close" methodSignature="()V"/>
             <delMethod className="java.io.FileInputStream" methodName="getChannel"
                        methodSignature="()Ljava/nio/channels/FileChannel;"/>
+        </delMethods>
+    </Resource>
+    <Resource className="java.io.Reader">
+        <addMethods>
+            <addMethod className="java.io.FileReader" methodName="&lt;init&gt;"
+                       methodSignature="(Ljava/lang/String;)V"/>
+        </addMethods>
+        <delMethods>
+            <delMethod className="java.io.FileReader" methodName="close" methodSignature="()V"/>
+            <delMethod className="java.io.Reader" methodName="close" methodSignature="()V"/>
+        </delMethods>
+    </Resource>
+    <Resource className="java.io.Writer">
+        <addMethods>
+            <addMethod className="java.io.FileIWriter" methodName="&lt;init&gt;"
+                       methodSignature="(Ljava/lang/String;)V"/>
+        </addMethods>
+        <delMethods>
+            <delMethod className="java.io.FileWriter" methodName="close" methodSignature="()V"/>
+            <delMethod className="java.io.Writer" methodName="close" methodSignature="()V"/>
         </delMethods>
     </Resource>
     <Resource className="java.sql.Connection">
@@ -77,5 +97,5 @@
         <delMethods>
             <delMethod className="java.sql.ResultSet" methodName="close" methodSignature="()V"/>
         </delMethods>
-    </Resource>
+    </Resource>-->
 </Resources>

@@ -16,4 +16,11 @@ public class OpcodeUtils implements Constants{
         }
         return false;
     }
+
+    public static boolean isInvoke(int opcode) {
+        if(opcode == INVOKEVIRTUAL||opcode == INVOKESPECIAL||opcode == INVOKESTATIC||opcode == INVOKEINTERFACE){
+            return true;
+        }
+        return false;
+    }
 }

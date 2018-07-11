@@ -10,6 +10,8 @@ public class SignatureUtils {
 
     private SignatureUtils(){}
 
+    private static final String OBJET_TAG = "L";
+
     public static boolean isVoidReturnType(String signature){
         SignatureParser parser = new SignatureParser(signature);
         String returnTypeSignature = parser.getReturnTypeSignature();
@@ -50,6 +52,12 @@ public class SignatureUtils {
     }
 
     public static String trimArgument(String arg){
+        if (arg == null) {
+            return null;
+        }
+        if(!arg.startsWith(OBJET_TAG)){
+            return null;
+        }
         return arg.substring(1,arg.length()-1).replace("/",".");
     }
 
