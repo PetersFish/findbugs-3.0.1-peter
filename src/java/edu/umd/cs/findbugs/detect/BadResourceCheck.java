@@ -4,7 +4,6 @@ import edu.umd.cs.findbugs.*;
 import edu.umd.cs.findbugs.ba.*;
 import edu.umd.cs.findbugs.bcel.OpcodeStackDetector;
 import edu.umd.cs.findbugs.classfile.*;
-import edu.umd.cs.findbugs.classfile.engine.bcel.CFGFactory;
 import edu.umd.cs.findbugs.detect.database.*;
 import edu.umd.cs.findbugs.detect.database.container.LinkedStack;
 import edu.umd.cs.findbugs.util.OpcodeUtils;
@@ -28,7 +27,7 @@ public class BadResourceCheck extends OpcodeStackDetector {
     public BadResourceCheck(BugReporter bugReporter,
                             Integer currentScanLevel,
                             Method currentSpecifiedMethod,
-                            Integer currentLookIntoLevel){
+                            Integer currentLookIntoLevel) {
         this.bugReporter = bugReporter;
         this.currentScanLevel = currentScanLevel;
         this.currentSpecifiedMethod = currentSpecifiedMethod;
@@ -42,6 +41,14 @@ public class BadResourceCheck extends OpcodeStackDetector {
     private static final boolean DEBUG = SystemProperties.getBoolean("oa.debug");
 
     private static final Logger LOGGER = Logger.getLogger(BadResourceCheck.class.getName());
+
+    // ++++++++++++++++ IfElseBlock 相关 +++++++++++++++++++++++
+
+    private IfElseBlockManager blockManager;
+
+    private static final LinkedStack<IfElseBlockManager> blockManagerStack = new LinkedStack<>();
+
+    // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
     /**
      * 用于存放需要扫描的JavaClass的白名单
@@ -95,7 +102,7 @@ public class BadResourceCheck extends OpcodeStackDetector {
     /**
      * lookInto时被指定要扫描的方法
      */
-    private  Method currentSpecifiedMethod = null;
+    private Method currentSpecifiedMethod = null;
 
     /**
      * 用于存放多层lookInto时，指定扫描的方法的栈存储
@@ -127,7 +134,7 @@ public class BadResourceCheck extends OpcodeStackDetector {
     /**
      * 当前扫描层
      */
-    private  int currentScanLevel = 0;
+    private int currentScanLevel = 0;
 
     private int currentLookIntoLevel = 0;
 
@@ -175,12 +182,12 @@ public class BadResourceCheck extends OpcodeStackDetector {
             }
         }*/
 
-        if(javaClassForScanWhitList.contains(jclass.getClassName())){
+        if (javaClassForScanWhitList.contains(jclass.getClassName())) {
             super.visitClassContext(classContext);
             return;
         }
 
-        if(javaClassForScanBlackList.contains(jclass.getClassName())){
+        if (javaClassForScanBlackList.contains(jclass.getClassName())) {
             return;
         }
 
@@ -188,14 +195,14 @@ public class BadResourceCheck extends OpcodeStackDetector {
             if (c instanceof ConstantNameAndType) {
                 ConstantNameAndType cnt = (ConstantNameAndType) c;
                 String signature = cnt.getSignature(jclass.getConstantPool());
-                if(ResourceFactory.signatureInvovlesResource(signature)){
+                if (ResourceFactory.signatureInvovlesResource(signature)) {
                     javaClassForScanWhitList.add(jclass.getClassName());
                     super.visitClassContext(classContext);
                     return;
                 }
             } else if (c instanceof ConstantClass) {
                 String className = ((ConstantClass) c).getBytes(jclass.getConstantPool());
-                if(ResourceFactory.signatureInvovlesResource(className)){
+                if (ResourceFactory.signatureInvovlesResource(className)) {
                     javaClassForScanWhitList.add(jclass.getClassName());
                     super.visitClassContext(classContext);
                     return;
@@ -211,21 +218,22 @@ public class BadResourceCheck extends OpcodeStackDetector {
     @Override
     public void visit(Code obj) {
 
-        if(resourceSet.isEmpty()){
+        if (resourceSet.isEmpty()) {
             return;
         }
 
         // 初始化参数
         methodInvoked = new HashSet<>();
         currentLevelCapturer = new ResourceInstanceCapturer();
+        blockManager = new IfElseBlockManager();
 
-        if(currentSpecifiedMethod != null){
-            if(visitingMethod()){
-                if(getMethod().getName().equals(currentSpecifiedMethod.getName())){
+        if (currentSpecifiedMethod != null) {
+            if (visitingMethod()) {
+                if (getMethod().getName().equals(currentSpecifiedMethod.getName())) {
                     super.visit(obj);
                 }
             }
-        }else {
+        } else {
             super.visit(obj);
             // 遍历currentLevelCapturer里面的resourceInstance，将实例的bugInstance报告掉
             LinkedList<ResourceInstance> instances = currentLevelCapturer.listResourceInstance();
@@ -235,54 +243,63 @@ public class BadResourceCheck extends OpcodeStackDetector {
             currentLevelCapturer.clear();
         }
 
+        System.out.println(blockManager);
+
     }
 
     @Override
     public void sawOpcode(int seen) {
 
-        // 如果是最原始的代码扫描层，使用这套逻辑
-        if(currentScanLevel == RAW_SCAN_LEVEL){
+        if (currentScanLevel == RAW_SCAN_LEVEL) {
+            drawIfElseBlock(seen);
 
-            if(seen == ASTORE||seen == ASTORE_0||seen == ASTORE_1||seen == ASTORE_2||seen == ASTORE_3){
+        }
+
+        // 如果是最原始的代码扫描层，使用这套逻辑
+        if (currentScanLevel == RAW_SCAN_LEVEL) {
+
+            if (seen == ASTORE || seen == ASTORE_0 || seen == ASTORE_1 || seen == ASTORE_2 || seen == ASTORE_3) {
                 // 如果其前面一条指令是invoke，则存储registerOperand
                 int prevOpcode = getPrevOpcode(1);
                 boolean isInvoke = OpcodeUtils.isInvoke(prevOpcode);
-                if(isInvoke){
+                if (isInvoke) {
                     int registerOperand = getRegisterOperand();
                     boolean addFlag = currentLevelCapturer.addStackIndex(registerOperand);
                 }
             }
 
-            if(seen == ALOAD||seen == ALOAD_0||seen == ALOAD_1||seen == ALOAD_2||seen == ALOAD_3){
+            if (seen == ALOAD || seen == ALOAD_0 || seen == ALOAD_1 || seen == ALOAD_2 || seen == ALOAD_3) {
                 currentLevelLastRegLoad = getRegisterOperand();
             }
 
-            if(seen == ARETURN){
+            if (seen == ARETURN) {
                 // 判断返回的对象是不是开启的资源对象，通过变量的stackIndex（registerOperand）进行判断，
                 // 如果是，将其从capturer中消除（相当于关闭资源）
                 int prevOpcode = getPrevOpcode(1);
                 boolean isLoad = OpcodeUtils.isLoad(prevOpcode);
                 if (isLoad) {
-                    currentLevelCapturer.removeInstance(currentLevelLastRegLoad);
+                    removeInstanceWrapper(seen);
                 }
             }
 
-            if(seen == INVOKEVIRTUAL||seen == INVOKESPECIAL||seen == INVOKESTATIC||seen == INVOKEINTERFACE){
+            if (seen == INVOKEVIRTUAL || seen == INVOKESPECIAL || seen == INVOKESTATIC || seen == INVOKEINTERFACE) {
                 // 初始化指令码操作对象
                 String classConstantOperand = getClassConstantOperand();
                 String nameConstantOperand = getNameConstantOperand();
                 String signature = getMethodDescriptorOperand().getSignature();
-                ResourceOperation targetOperation = new ResourceOperation(classConstantOperand, nameConstantOperand,signature);
+                ResourceOperation targetOperation = new ResourceOperation(classConstantOperand, nameConstantOperand,
+                                                                          signature);
 
                 // 如果是开启资源的方法，则建立资源实例，存储到ResourceInstanceCapturer当中去
                 boolean resourceOpen = isResourceOpenInvoke(targetOperation);
-                if(resourceOpen){
+                if (resourceOpen) {
                     int nextOpcode = getNextOpcode();
                     // (加一个前提条件后面的一个操作码不是ARETURN)
-                    if(nextOpcode != ARETURN){
-                        BugInstance bugInstance = new BugInstance(this,"RESOURCE_NOT_RELEASED",HIGH_PRIORITY)
-                                .addClassAndMethod(this).addSourceLine(this,getPC());
-                        ResourceInstance resourceInstance = new ResourceInstance(targetOperation.getInvolvedResourceForOpenInvoke(), null, bugInstance);
+                    if (nextOpcode != ARETURN) {
+                        BugInstance bugInstance = new BugInstance(this, "RESOURCE_NOT_RELEASED", HIGH_PRIORITY)
+                                .addClassAndMethod(this).addSourceLine(this, getPC());
+                        ResourceInstance resourceInstance = new ResourceInstance(
+                                targetOperation.getInvolvedResourceForOpenInvoke(), null, getPC(), bugInstance);
                         // 并且要把ResourceInstanceCapturer的valve打开，方便下个指令码扫描时，加入stackIndex
                         currentLevelCapturer.addInstance(resourceInstance);
                     }
@@ -291,8 +308,8 @@ public class BadResourceCheck extends OpcodeStackDetector {
 
                 // 如果是关闭资源的方法，则将资源从ResourceInstanceCapturer中去除，需要知道变量的statckIndex
                 boolean resourceClose = isResourceCloseInvoke(targetOperation);
-                if(resourceClose){
-                    removeInstance(currentLevelCapturer, currentLevelLastRegLoad);
+                if (resourceClose) {
+                    removeInstanceWrapper(seen);
                     currentLevelLastRegLoad = null;
 
                 }
@@ -301,49 +318,52 @@ public class BadResourceCheck extends OpcodeStackDetector {
         }
 
         // 如果是深入扫描指定的某个方法的内部寻找资源Open相关信息，则使用这套逻辑
-        if(currentScanLevel == LOOK_INTO_FOR_OPEN_SCAN_LEVEL){
+        if (currentScanLevel == LOOK_INTO_FOR_OPEN_SCAN_LEVEL) {
 
-            if(seen == ASTORE||seen == ASTORE_0||seen == ASTORE_1||seen == ASTORE_2||seen == ASTORE_3){
+            if (seen == ASTORE || seen == ASTORE_0 || seen == ASTORE_1 || seen == ASTORE_2 || seen == ASTORE_3) {
                 int registerOperand = getRegisterOperand();
                 boolean addFlag = currentLevelCapturer.addStackIndex(registerOperand);
             }
 
-            if(seen == ALOAD||seen == ALOAD_0||seen == ALOAD_1||seen == ALOAD_2||seen == ALOAD_3){
+            if (seen == ALOAD || seen == ALOAD_0 || seen == ALOAD_1 || seen == ALOAD_2 || seen == ALOAD_3) {
                 currentLevelLastRegLoad = getRegisterOperand();
             }
 
-            if(seen == ARETURN){
+            if (seen == ARETURN) {
                 // 判断返回的对象是不是开启的资源对象，通过变量的stackIndex（registerOperand）进行判断，
                 // 如果是，将资源类型存到lookIntoReturnResource里面
                 int prevOpcode = getPrevOpcode(1);
                 boolean isLoad = OpcodeUtils.isLoad(prevOpcode);
-                if(isLoad){
-                    currentLookIntoReturnResource  = currentLevelCapturer.removeInstance(currentLevelLastRegLoad);
+                if (isLoad) {
+
+                    currentLookIntoReturnResource = removeInstanceWrapper(seen);
                     currentLevelLastRegLoad = null;
                 }
             }
 
             // 如果在本层发现有资源创建，并作为返回值，则说明有方法，需要返回true，
             // 这个true存在哪里好呢,存在lookIntoResultMap里面
-            if(seen == INVOKEVIRTUAL||seen == INVOKESPECIAL||seen == INVOKESTATIC||seen == INVOKEINTERFACE){
+            if (seen == INVOKEVIRTUAL || seen == INVOKESPECIAL || seen == INVOKESTATIC || seen == INVOKEINTERFACE) {
                 // 初始化指令码操作对象
                 String classConstantOperand = getClassConstantOperand();
                 String nameConstantOperand = getNameConstantOperand();
                 String signature = getMethodDescriptorOperand().getSignature();
-                ResourceOperation targetOperation = new ResourceOperation(classConstantOperand, nameConstantOperand,signature);
+                ResourceOperation targetOperation = new ResourceOperation(classConstantOperand, nameConstantOperand,
+                                                                          signature);
 
                 boolean resourceOpen = isResourceOpenInvoke(targetOperation);
 
-                if(resourceOpen){
+                if (resourceOpen) {
                     // 需要将资源对象存起来，等到方法走到返回的地方时
                     // 查看返回的对象statckIndex是否和记录下来的资源对象的statckIndex相匹配
                     // 如果相匹配，将资源对象的种类Resource存起来，怎么存？用栈结构存储
                     // 如果nextOpcode是ARETURN，则直接将Resource赋值给lookIntoResource
                     int nextOpcode = getNextOpcode();
-                    if(nextOpcode != ARETURN){
-                        ResourceInstance instance = new ResourceInstance(targetOperation.getInvolvedResourceForOpenInvoke(), null, null);
+                    if (nextOpcode != ARETURN) {
+                        ResourceInstance instance = new ResourceInstance(
+                                targetOperation.getInvolvedResourceForOpenInvoke(), null, getPC(), null);
                         currentLevelCapturer.addInstance(instance);
-                    }else {
+                    } else {
                         currentLookIntoReturnResource = resourceOpen;
                     }
 
@@ -353,38 +373,37 @@ public class BadResourceCheck extends OpcodeStackDetector {
                 boolean resourceClose = isResourceCloseInvoke(targetOperation);
 
                 if (resourceClose) {
-                    removeInstance(currentLevelCapturer, currentLevelLastRegLoad);
+                    removeInstanceWrapper(seen);
                     currentLevelLastRegLoad = null;
-
                 }
                 return;
             }
         }
 
         // 如果是深入扫描指定的某个方法的内部寻找资源Close相关信息，则使用这套逻辑
-        if(currentScanLevel == LOOK_INTO_FOR_CLOSE_SCAN_LEVEL){
+        if (currentScanLevel == LOOK_INTO_FOR_CLOSE_SCAN_LEVEL) {
 
-            if(seen == ALOAD||seen == ALOAD_0||seen == ALOAD_1||seen == ALOAD_2||seen == ALOAD_3){
+            if (seen == ALOAD || seen == ALOAD_0 || seen == ALOAD_1 || seen == ALOAD_2 || seen == ALOAD_3) {
                 currentLevelLastRegLoad = getRegisterOperand();
             }
 
-            if(seen == INVOKEVIRTUAL||seen == INVOKESPECIAL||seen == INVOKESTATIC||seen == INVOKEINTERFACE){
+            if (seen == INVOKEVIRTUAL || seen == INVOKESPECIAL || seen == INVOKESTATIC || seen == INVOKEINTERFACE) {
                 // 初始化指令码操作对象
                 String classConstantOperand = getClassConstantOperand();
                 String nameConstantOperand = getNameConstantOperand();
                 String signature = getMethodDescriptorOperand().getSignature();
-                ResourceOperation targetOperation = new ResourceOperation(classConstantOperand, nameConstantOperand,signature);
-
+                ResourceOperation targetOperation = new ResourceOperation(classConstantOperand, nameConstantOperand,
+                                                                          signature);
 
                 boolean resourceClose = isResourceCloseInvoke(targetOperation);
                 if (resourceClose) {
                     // 如果lastRegLoad=1，说明关闭的是参数里面的资源
-                    if(currentSpecifiedMethod.isStatic()){
-                        if(currentLevelLastRegLoad == 0){
+                    if (currentSpecifiedMethod.isStatic()) {
+                        if (currentLevelLastRegLoad == 0) {
                             currentLookIntoReturnResource = resourceClose;
                         }
-                    }else {
-                        if(currentLevelLastRegLoad == 1){
+                    } else {
+                        if (currentLevelLastRegLoad == 1) {
                             currentLookIntoReturnResource = resourceClose;
                         }
                     }
@@ -393,40 +412,138 @@ public class BadResourceCheck extends OpcodeStackDetector {
         }
     }
 
-    /**
-     * 关闭对应的资源
-     * @param currentLevelCapturer
-     * @param currentLevelLastRegLoad
-     */
-    private void removeInstance(ResourceInstanceCapturer currentLevelCapturer,
-                                Integer currentLevelLastRegLoad) {
-        // 判断执行语句是否是在catch块中，如果是，则不进行操作
-        boolean atCatchBlock = atCatchBlock();
-        if(atCatchBlock){
-            return;
+    private boolean removeInstanceWrapper(int seen) {
+        // 先判断当前close所在ifElseBlock中的层级
+        Map.Entry<IfElseBlock, Map.Entry<Integer, BitSet>> entry = blockManager.inBaseIfElseBlock(
+                seen);
+        IfElseBlockLocation location = null;
+        if (entry != null) {
+            location = new IfElseBlockLocation(entry.getKey(), entry.getValue().getKey(), entry.getValue().getValue());
+        } else {
+            location = new IfElseBlockLocation();
         }
-        Integer lineNumber = getLineNumber();
-        // 如果methodInvoked中已经存在对应行号，说明语句已经执行过了，不需要再执行一遍
-        if(!methodInvoked.contains(lineNumber)){
-            boolean flag = currentLevelCapturer.removeInstance(currentLevelLastRegLoad);
-            if(flag){
-                methodInvoked.add(lineNumber);
+
+        return removeInstance(currentLevelCapturer, currentLevelLastRegLoad, location);
+    }
+
+    // 绘制IfElseBlock结构图
+    private void drawIfElseBlock(int seen) {
+        LinkedStack<BitSet> tempBranchStack = blockManager.getTempBranchStack();
+        LinkedStack<Integer> currentIfBlockEndStack = blockManager.getCurrentIfBlockEndStack();
+        if (OpcodeUtils.isIfInstruction(seen)) {
+            int branchTarget = getBranchTarget();
+            int branchFallThrough = getBranchFallThrough();
+
+            BitSet bitSet = new BitSet();
+            bitSet.set(branchFallThrough, branchTarget);
+            tempBranchStack.push(bitSet);
+            currentIfBlockEndStack.push(branchTarget);
+
+        } else {
+
+            Integer nextPC = null;
+            if (getPC() < getMaxPC()) {
+                nextPC = getNextPC();
+            }
+            // 可能currentIfBlockEndStack存在两个一样的currentBlockEnd，需要循环都遍历出来
+            while (true) {
+                Integer currentBlockEnd = currentIfBlockEndStack.peek();
+
+                if (nextPC != null && currentBlockEnd != null && nextPC == currentBlockEnd) {
+
+                    BitSet branch = tempBranchStack.peek();
+                    BitSet bottomBranch = tempBranchStack.peekBottom();
+                    if (branch == null) {
+                        return;
+                    }
+
+                    // 获取branch所在block的结束点
+                    Integer blockEnd = null;
+                    if (seen == GOTO) {
+                        blockEnd = getBranchTarget();
+                    } else {
+                        blockEnd = branch.length();
+                    }
+
+                    int currentBlockLevel = tempBranchStack.size();
+                    // 获取当前branch所在的基础block，level=currentBlockLevel+blockLevel
+                    IfElseBlock ifElseBlock = blockManager.inBaseIfElseBlock(bottomBranch);
+                    if (ifElseBlock != null) {
+                        currentBlockLevel += ifElseBlock.getBlockLevel();
+                        boolean hasBranch = ifElseBlock.hasBranch(bottomBranch);
+                        if (hasBranch) {
+                            --currentBlockLevel;
+                        }
+                    }
+
+                    IfElseBlock block = blockManager.getFamily(blockEnd, currentBlockLevel);
+                    if (block == null) {
+                        block = new IfElseBlock();
+                        block.addIfBlock(branch);
+                        block.setBlockLevel(currentBlockLevel);
+                        block.setElseBlockEnd(blockEnd);
+                        blockManager.addBlock(block);
+                    } else {
+                        block.addIfBlock(branch);
+                    }
+                    currentIfBlockEndStack.pop();
+                    tempBranchStack.pop();
+                } else {
+                    break;
+                }
             }
         }
     }
 
+    /**
+     * 判断指令是否是ifBlock里面最后一条指令
+     *
+     * @param pc
+     * @param range
+     * @return
+     */
+    private boolean isLastInstructionInBlock(int pc, BitSet range) {
+        int nextPC = getNextPC();
+        return !range.get(nextPC) && range.get(pc);
+    }
+
+    /**
+     * 关闭对应的资源
+     *  @param currentLevelCapturer
+     * @param currentLevelLastRegLoad
+     * @param location
+     */
+    private boolean removeInstance(ResourceInstanceCapturer currentLevelCapturer,
+                                   Integer currentLevelLastRegLoad, IfElseBlockLocation location) {
+        // 判断执行语句是否是在catch块中，如果是，则不进行操作
+        boolean atCatchBlock = atCatchBlock();
+        if (atCatchBlock) {
+            return false;
+        }
+        Integer lineNumber = getLineNumber();
+        // 如果methodInvoked中已经存在对应行号，说明语句已经执行过了，不需要再执行一遍
+        if (!methodInvoked.contains(lineNumber)) {
+            boolean flag = currentLevelCapturer.removeInstance(currentLevelLastRegLoad, location, blockManager);
+            if (flag) {
+                methodInvoked.add(lineNumber);
+                return true;
+            }
+        }
+        return false;
+    }
+
     // 思路：
     // 返回值必须匹配，相同或者是Resource的父类
+
     /**
-     *
      * @param targetOperation 目标操作
      * @return
      */
-    private boolean likeResourceOpenInvoke(ResourceOperation targetOperation)  {
+    private boolean likeResourceOpenInvoke(ResourceOperation targetOperation) {
         // 从signature里面取到返回类型的部分
         String signature = targetOperation.getSignature();
         String className = SignatureUtils.getObjectReturnTypeClassName(signature);
-        if(className == null){
+        if (className == null) {
             return false;
         }
 
@@ -437,28 +554,30 @@ public class BadResourceCheck extends OpcodeStackDetector {
     // 思路：
     // 如果signature是以（资源）V形式存在，则可能是关闭资源的方法，
     // 并且参数里面的资源是之前已经Open过的
+
     /**
      * 判断指令操作想不想资源关闭的操作
+     *
      * @param targetOperation
      * @return
      */
-    private boolean likeResourceCloseInvoke(ResourceOperation targetOperation){
+    private boolean likeResourceCloseInvoke(ResourceOperation targetOperation) {
 
         String methodName = targetOperation.getMethodName();
-        if("<init>".equals(methodName)){
+        if ("<init>".equals(methodName)) {
             return false;
         }
         String signature = targetOperation.getSignature();
         SignatureParser parser = new SignatureParser(signature);
         String returnTypeSignature = parser.getReturnTypeSignature();
         // 如果不是void函数，返回false
-        if(!"V".equals(returnTypeSignature)){
+        if (!"V".equals(returnTypeSignature)) {
             return false;
         }
 
         // 遍历参数数组里面是否有资源类型的参数
         String[] arguments = parser.getArguments();
-        if(arguments.length != 1){
+        if (arguments.length != 1) {
             return false;
         }
         String argument = arguments[0];
@@ -475,29 +594,29 @@ public class BadResourceCheck extends OpcodeStackDetector {
      *
      * @return
      */
-    private boolean isResourceOpenInvoke(ResourceOperation targetOperation){
+    private boolean isResourceOpenInvoke(ResourceOperation targetOperation) {
         // 如果在目前已有的方法库里面能够匹配到，则返回true，不然继续进一步判断
         boolean inOpenWhiteList = detector.inOpenWhiteList(targetOperation);
-        if(inOpenWhiteList){
+        if (inOpenWhiteList) {
             return true;
         }
         boolean inOpenBlackList = detector.inOpenBlackList(targetOperation);
-        if(inOpenBlackList){
+        if (inOpenBlackList) {
             return false;
         }
 
         // 如果不像是资源开启方法，直接返回false
-        if(likeResourceOpenInvoke(targetOperation)){
-            boolean isResourceOpen =  lookIntoMethodWraper(targetOperation,LOOK_INTO_FOR_OPEN_SCAN_LEVEL);
+        if (likeResourceOpenInvoke(targetOperation)) {
+            boolean isResourceOpen = lookIntoMethodWraper(targetOperation, LOOK_INTO_FOR_OPEN_SCAN_LEVEL);
             String openClassName = SignatureUtils.getObjectReturnTypeClassName(targetOperation.getSignature());
-            if(isResourceOpen){
+            if (isResourceOpen) {
                 if (openClassName != null) {
-                    detector.appendOperation(openClassName,targetOperation,OPEN,WHITE);
+                    detector.appendOperation(openClassName, targetOperation, OPEN, WHITE);
                 }
                 return true;
-            }else {
+            } else {
                 if (currentLookIntoLevel == 0) {
-                    detector.appendOperation(OPEN,targetOperation,OPEN,BLACK);
+                    detector.appendOperation(OPEN, targetOperation, OPEN, BLACK);
                 }
             }
         }
@@ -507,32 +626,33 @@ public class BadResourceCheck extends OpcodeStackDetector {
 
     /**
      * 判断方法
+     *
      * @param targetOperation
      * @return
      */
-    private boolean isResourceCloseInvoke(ResourceOperation targetOperation){
+    private boolean isResourceCloseInvoke(ResourceOperation targetOperation) {
         // 如果在目前已有的方法库里面能够匹配到，则返回true，不然继续进一步判断
         boolean inCloseWhiteList = detector.inCloseWhitList(targetOperation);
-        if(inCloseWhiteList){
+        if (inCloseWhiteList) {
             return true;
         }
         boolean inCloseBlackList = detector.inCloseBlackList(targetOperation);
-        if(inCloseWhiteList){
+        if (inCloseWhiteList) {
             return false;
         }
 
         // 思路同Open方法
-        if(likeResourceCloseInvoke(targetOperation)){
-            boolean isResourceClose = lookIntoMethodWraper(targetOperation,LOOK_INTO_FOR_CLOSE_SCAN_LEVEL);
+        if (likeResourceCloseInvoke(targetOperation)) {
+            boolean isResourceClose = lookIntoMethodWraper(targetOperation, LOOK_INTO_FOR_CLOSE_SCAN_LEVEL);
             String closeClassName = SignatureUtils.getObjectParamClassName(targetOperation.getSignature());
-            if(isResourceClose){
+            if (isResourceClose) {
                 if (closeClassName != null) {
-                    detector.appendOperation(closeClassName,targetOperation,CLOSE,WHITE);
+                    detector.appendOperation(closeClassName, targetOperation, CLOSE, WHITE);
                 }
                 return true;
-            }else {
+            } else {
                 if (currentLookIntoLevel == 0) {
-                    detector.appendOperation(CLOSE,targetOperation,CLOSE,BLACK);
+                    detector.appendOperation(CLOSE, targetOperation, CLOSE, BLACK);
                 }
             }
         }
@@ -541,6 +661,7 @@ public class BadResourceCheck extends OpcodeStackDetector {
 
     /**
      * 对lookIntoMethod做了栈操作的增强
+     *
      * @param targetOperation
      * @param scanLevel
      * @return
@@ -553,6 +674,7 @@ public class BadResourceCheck extends OpcodeStackDetector {
         lookIntoReturnResourceStack.push(currentLookIntoReturnResource);
         specifiedMethodStack.push(currentSpecifiedMethod);
         scanLevelStack.push(currentScanLevel);
+        blockManagerStack.push(blockManager);
 
         boolean resource = false;
         try {
@@ -567,6 +689,7 @@ public class BadResourceCheck extends OpcodeStackDetector {
             currentLookIntoReturnResource = lookIntoReturnResourceStack.pop();
             currentSpecifiedMethod = specifiedMethodStack.pop();
             currentScanLevel = scanLevelStack.pop();
+            blockManager = blockManagerStack.pop();
         }
 
         return resource;
@@ -574,6 +697,7 @@ public class BadResourceCheck extends OpcodeStackDetector {
 
     /**
      * 用于检查方法里面有无创建资源并返回，如果有，返回true
+     *
      * @param targetOperation 目标检测操作
      * @param scanLevel
      * @return
@@ -582,7 +706,7 @@ public class BadResourceCheck extends OpcodeStackDetector {
     private boolean lookIntoMethod(ResourceOperation targetOperation, Integer scanLevel) {
         try {
             currentLookIntoLevel++;
-            if(currentLookIntoLevel > MAX_LOOK_INTO_LEVEL){
+            if (currentLookIntoLevel > MAX_LOOK_INTO_LEVEL) {
                 return false;
             }
             JavaClass aClass = adapter.findClass(targetOperation.getClazzName());
@@ -591,7 +715,7 @@ public class BadResourceCheck extends OpcodeStackDetector {
             Method[] methods = aClass.getMethods();
             for (int i = 0; i < methods.length; i++) {
                 Method method = methods[i];
-                if(method.getName().equals(targetOperation.getMethodName())){
+                if (method.getName().equals(targetOperation.getMethodName())) {
                     Code lookIntoCode = method.getCode();
                     currentScanLevel = scanLevel;
                     currentSpecifiedMethod = method;
@@ -600,7 +724,6 @@ public class BadResourceCheck extends OpcodeStackDetector {
                                                                              currentSpecifiedMethod,
                                                                              currentLookIntoLevel);
                     badResourceCheck.visitClassContext(classContext);
-
 
                     // 如果是满足条件的资源开启或者关闭操作，则返回这个资源类型Resource
                     return badResourceCheck.currentLookIntoReturnResource;
@@ -615,7 +738,7 @@ public class BadResourceCheck extends OpcodeStackDetector {
         return false;
     }
 
-    private Integer getLineNumber(){
+    private Integer getLineNumber() {
         return lineNumberTable.getSourceLine(getPC());
     }
 }

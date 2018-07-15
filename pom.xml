@@ -265,7 +265,7 @@
         </dependency>-->
     </dependencies>
 
-    <!--<distributionManagement>
+    <distributionManagement>
         <repository>
             <id>yummm-release</id>
             <url>http://www.yummm.cn:8081/nexus/content/groups/public/</url>
@@ -274,9 +274,9 @@
             <id>yummm-snapshots</id>
             <url>http://www.yummm.cn:8081/nexus/content/repositories/snapshots/</url>
         </snapshotRepository>
-    </distributionManagement>-->
+    </distributionManagement>
 
-    <distributionManagement>
+ <!--   <distributionManagement>
         <repository>
             <id>releases</id>
             <url>http://mvnrepo.alibaba-inc.com/mvn/releases</url>
@@ -285,7 +285,7 @@
             <id>snapshots</id>
             <url>http://mvnrepo.alibaba-inc.com/mvn/snapshots</url>
         </snapshotRepository>
-    </distributionManagement>
+    </distributionManagement>-->
 
     <build>
         <sourceDirectory>${basedir}/src/java</sourceDirectory>

@@ -13,10 +13,28 @@ public class LinkedStack<T> {
         return linkedList.add(t);
     }
 
+    public T peek(){
+        if(linkedList.size() == 0){
+            return null;
+        }
+        return linkedList.getLast();
+    }
+
     public T pop(){
         if(linkedList.size() == 0){
             return null;
         }
         return linkedList.removeLast();
+    }
+
+    public T peekBottom(){
+        if(linkedList.size() == 0){
+            return null;
+        }
+        return linkedList.getFirst();
+    }
+
+    public Integer size(){
+        return linkedList.size();
     }
 }
