@@ -10,6 +10,7 @@ import edu.umd.cs.findbugs.util.OpcodeUtils;
 import edu.umd.cs.findbugs.util.SignatureUtils;
 import org.apache.bcel.classfile.*;
 import edu.umd.cs.findbugs.classfile.Global;
+import org.apache.bcel.generic.*;
 
 import java.util.*;
 import java.util.logging.Logger;
@@ -147,6 +148,35 @@ public class BadResourceCheck extends OpcodeStackDetector {
         ClassContext context = getClassContext();
         JavaClass jclass = context.getJavaClass();
         Method method = getMethod();
+        BitSet pcInBlock = new BitSet();
+
+        IAnalysisCache analysisCache = Global.getAnalysisCache();
+        XMethod xMethod = XFactory.createXMethod(jclass, method);
+        OpcodeStack.JumpInfo jumpInfo = null;
+        try {
+            jumpInfo = analysisCache.getMethodAnalysis(OpcodeStack.JumpInfo.class, xMethod.getMethodDescriptor());
+        } catch (CheckedAnalysisException e) {
+            AnalysisContext.logError("Error getting jump information", e);
+        }
+        for (CodeException e : getCode().getExceptionTable()) {
+            if (e.getCatchType() != 0) {
+                int begin = e.getHandlerPC();
+                if (jumpInfo != null) {
+                    int end = jumpInfo.getNextJump(begin + 1);
+                    if (end >= begin) {
+                        pcInBlock.set(begin, end);
+                        return pcInBlock.get(getPC());
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    public boolean atFinallyBlock(){
+        ClassContext context = getClassContext();
+        JavaClass jclass = context.getJavaClass();
+        Method method = getMethod();
         BitSet pcInCatchBlock = new BitSet();
 
         IAnalysisCache analysisCache = Global.getAnalysisCache();
@@ -158,12 +188,14 @@ public class BadResourceCheck extends OpcodeStackDetector {
             AnalysisContext.logError("Error getting jump information", e);
         }
         for (CodeException e : getCode().getExceptionTable()) {
-            int begin = e.getHandlerPC();
-            if (jumpInfo != null) {
-                int end = jumpInfo.getNextJump(begin + 1);
-                if (end >= begin) {
-                    pcInCatchBlock.set(begin, end);
-                    return pcInCatchBlock.get(getPC());
+            if (e.getCatchType() == 0) {
+                int begin = e.getHandlerPC();
+                if (jumpInfo != null) {
+                    int end = jumpInfo.getNextJump(begin + 1);
+                    if (end >= begin) {
+                        pcInCatchBlock.set(begin, end);
+                        return pcInCatchBlock.get(getPC());
+                    }
                 }
             }
         }
@@ -218,6 +250,52 @@ public class BadResourceCheck extends OpcodeStackDetector {
     @Override
     public void visit(Code obj) {
 
+        // only for test
+        // todo
+        if(visitingMethod()){
+            System.out.println("sourcefile"+getSourceFile());
+            System.out.println("method:"+getMethod().getName());
+        }
+        /*if (visitingMethod()) {
+
+            ClassContext classContext = getClassContext();
+            Method method = getMethod();
+            try {
+                CFG cfg = classContext.getCFG(method);
+                for (Iterator<Edge> edgeIterator = cfg.edgeIterator();edgeIterator.hasNext();){
+                    Edge edge = edgeIterator.next();
+                    int type = edge.getType();
+                    if(type == Edge.IFCMP_EDGE){
+                        BasicBlock source = edge.getSource();
+                        BasicBlock target = edge.getTarget();
+                        int branchFallThrough = source.pos();
+                        int branchTarget = target.pos();
+                        InstructionHandle sourceLast = source.getLastInstruction();
+                        InstructionHandle targetLast = target.getLastInstruction();
+                        if(sourceLast.getInstruction() instanceof IfInstruction){
+                            IfInstruction instruction = (IfInstruction) sourceLast.getInstruction();
+                        }
+                        Instruction instruction = targetLast.getInstruction();
+                        if(instruction instanceof GotoInstruction){
+                            GotoInstruction gotoIns = (GotoInstruction) instruction;
+                            InstructionHandle insTarget = gotoIns.getTarget();
+                            Instruction instruction1 = insTarget.getInstruction();
+                            if(instruction1 instanceof GotoInstruction){
+
+                            }
+                        }else {
+
+                        }
+
+                    }
+
+                }
+
+            } catch (CFGBuilderException e) {
+                e.printStackTrace();
+            }
+        }*/
+
         if (resourceSet.isEmpty()) {
             return;
         }
@@ -242,8 +320,6 @@ public class BadResourceCheck extends OpcodeStackDetector {
             }
             currentLevelCapturer.clear();
         }
-
-        System.out.println(blockManager);
 
     }
 
@@ -278,7 +354,7 @@ public class BadResourceCheck extends OpcodeStackDetector {
                 int prevOpcode = getPrevOpcode(1);
                 boolean isLoad = OpcodeUtils.isLoad(prevOpcode);
                 if (isLoad) {
-                    removeInstanceWrapper(seen);
+                    removeInstanceWrapper();
                 }
             }
 
@@ -309,7 +385,7 @@ public class BadResourceCheck extends OpcodeStackDetector {
                 // 如果是关闭资源的方法，则将资源从ResourceInstanceCapturer中去除，需要知道变量的statckIndex
                 boolean resourceClose = isResourceCloseInvoke(targetOperation);
                 if (resourceClose) {
-                    removeInstanceWrapper(seen);
+                    removeInstanceWrapper();
                     currentLevelLastRegLoad = null;
 
                 }
@@ -335,8 +411,7 @@ public class BadResourceCheck extends OpcodeStackDetector {
                 int prevOpcode = getPrevOpcode(1);
                 boolean isLoad = OpcodeUtils.isLoad(prevOpcode);
                 if (isLoad) {
-
-                    currentLookIntoReturnResource = removeInstanceWrapper(seen);
+                    currentLookIntoReturnResource = removeInstanceWrapper();
                     currentLevelLastRegLoad = null;
                 }
             }
@@ -373,7 +448,7 @@ public class BadResourceCheck extends OpcodeStackDetector {
                 boolean resourceClose = isResourceCloseInvoke(targetOperation);
 
                 if (resourceClose) {
-                    removeInstanceWrapper(seen);
+                    removeInstanceWrapper();
                     currentLevelLastRegLoad = null;
                 }
                 return;
@@ -411,19 +486,35 @@ public class BadResourceCheck extends OpcodeStackDetector {
             }
         }
     }
+    // todo
+    private boolean removeInstanceWrapper() {
+        IfElseBlockLocation location = null;
 
-    private boolean removeInstanceWrapper(int seen) {
         // 先判断当前close所在ifElseBlock中的层级
         Map.Entry<IfElseBlock, Map.Entry<Integer, BitSet>> entry = blockManager.inBaseIfElseBlock(
-                seen);
-        IfElseBlockLocation location = null;
+                getPC());
+
         if (entry != null) {
-            location = new IfElseBlockLocation(entry.getKey(), entry.getValue().getKey(), entry.getValue().getValue());
+            // 如果基层的条件语句条件是null判断，则忽略此条件语句
+            BitSet range = entry.getValue().getValue();
+            boolean flag = inIfNullBlock(range);
+            if (!flag) {
+                location = new IfElseBlockLocation(entry.getKey(), entry.getValue().getKey(), entry.getValue().getValue());
+            }
         } else {
             location = new IfElseBlockLocation();
         }
 
         return removeInstance(currentLevelCapturer, currentLevelLastRegLoad, location);
+    }
+
+    private boolean inIfNullBlock(BitSet range) {
+        int start = range.nextSetBit(0);
+        int prevOpcode = getPrevOpcode(start);
+        if(prevOpcode == IFNULL){
+            return true;
+        }
+        return false;
     }
 
     // 绘制IfElseBlock结构图
@@ -433,14 +524,31 @@ public class BadResourceCheck extends OpcodeStackDetector {
         if (OpcodeUtils.isIfInstruction(seen)) {
             int branchTarget = getBranchTarget();
             int branchFallThrough = getBranchFallThrough();
+            // todo
+            System.out.println("---------------push info----------------");
+            System.out.println("file name:"+getSourceFile());
+            System.out.println("method name:"+getMethodName());
+            System.out.println("if statement in line:"+getLineNumber());
+            System.out.println("branchFallThrough:"+branchFallThrough);
+            System.out.println("branchTarget:"+branchTarget);
+
+
 
             BitSet bitSet = new BitSet();
-            bitSet.set(branchFallThrough, branchTarget);
-            tempBranchStack.push(bitSet);
-            currentIfBlockEndStack.push(branchTarget);
+            if(branchFallThrough < branchTarget){
+                bitSet.set(branchFallThrough, branchTarget);
+                tempBranchStack.push(bitSet);
+                currentIfBlockEndStack.push(branchTarget);
+                // todo
+                System.out.println("push blockEnd to statck:"+branchTarget);
+                System.out.println("push branch to stack:"+bitSet);
+            }
 
+            // todo
+            System.out.println("----------------------------------------");
         } else {
 
+            int pc = getPC();
             Integer nextPC = null;
             if (getPC() < getMaxPC()) {
                 nextPC = getNextPC();
@@ -449,7 +557,7 @@ public class BadResourceCheck extends OpcodeStackDetector {
             while (true) {
                 Integer currentBlockEnd = currentIfBlockEndStack.peek();
 
-                if (nextPC != null && currentBlockEnd != null && nextPC == currentBlockEnd) {
+                if (nextPC != null && currentBlockEnd != null && nextPC.equals(currentBlockEnd)) {
 
                     BitSet branch = tempBranchStack.peek();
                     BitSet bottomBranch = tempBranchStack.peekBottom();
@@ -457,14 +565,21 @@ public class BadResourceCheck extends OpcodeStackDetector {
                         return;
                     }
 
+
                     // 获取branch所在block的结束点
                     Integer blockEnd = null;
-                    if (seen == GOTO) {
+                    int branchLength = branch.length();
+                    if (seen == GOTO&&getBranchTarget() > branchLength) {
+                        // todo
+                        System.out.println("====== set by goto =======");
                         blockEnd = getBranchTarget();
                     } else {
-                        blockEnd = branch.length();
+                        // todo
+                        System.out.println("====== set by branchEnd =======");
+                        blockEnd = branchLength;
                     }
 
+                    // level相关
                     int currentBlockLevel = tempBranchStack.size();
                     // 获取当前branch所在的基础block，level=currentBlockLevel+blockLevel
                     IfElseBlock ifElseBlock = blockManager.inBaseIfElseBlock(bottomBranch);
@@ -476,18 +591,40 @@ public class BadResourceCheck extends OpcodeStackDetector {
                         }
                     }
 
-                    IfElseBlock block = blockManager.getFamily(blockEnd, currentBlockLevel);
+                    IfElseBlock block = blockManager.getFamily(blockEnd);
                     if (block == null) {
+                        // todo
+                        System.out.println("==========create block==========");
+                        System.out.println("add branch:"+branch);
+                        System.out.println("set blockEnd:"+blockEnd);
+
                         block = new IfElseBlock();
                         block.addIfBlock(branch);
                         block.setBlockLevel(currentBlockLevel);
                         block.setElseBlockEnd(blockEnd);
                         blockManager.addBlock(block);
+
+                        // todo
+                        System.out.println("block:"+block);
+                        System.out.println("================================");
                     } else {
+                        // todo
+                        System.out.println("===========add branch===========");
+                        System.out.println("add branch:"+branch);
+
                         block.addIfBlock(branch);
+
+                        // todo
+                        System.out.println("block:"+block);
+                        System.out.println("================================");
                     }
                     currentIfBlockEndStack.pop();
                     tempBranchStack.pop();
+                    // todo
+                    System.out.println("===========pop info===========");
+                    System.out.println("pop currentBlockEnd:"+currentBlockEnd);
+                    System.out.println("pop currentBranch:"+branch);
+                    System.out.println("==============================");
                 } else {
                     break;
                 }
@@ -509,7 +646,8 @@ public class BadResourceCheck extends OpcodeStackDetector {
 
     /**
      * 关闭对应的资源
-     *  @param currentLevelCapturer
+     *
+     * @param currentLevelCapturer
      * @param currentLevelLastRegLoad
      * @param location
      */

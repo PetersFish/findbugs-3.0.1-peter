@@ -141,10 +141,6 @@ public class IfElseBlockManager {
         return tempBlock;
     }*/
 
-    public boolean isGotoEqual(int branchTarget, IfElseBlock tempBlock){
-        return false;
-    };
-
     /**
      * 判断range是否包含target
      * @param range
@@ -167,6 +163,15 @@ public class IfElseBlockManager {
     public IfElseBlock getFamily(int blockEnd, int currentBlockLevel) {
         for (IfElseBlock block : blockSet) {
             if(block.getElseBlockEnd() == blockEnd&&block.getBlockLevel() == currentBlockLevel){
+                return block;
+            }
+        }
+        return null;
+    }
+
+    public IfElseBlock getFamily(int blockEnd) {
+        for (IfElseBlock block : blockSet) {
+            if(block.getElseBlockEnd() == blockEnd){
                 return block;
             }
         }
