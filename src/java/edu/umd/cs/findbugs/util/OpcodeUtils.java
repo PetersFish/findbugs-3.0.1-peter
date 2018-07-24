@@ -14,6 +14,10 @@ public class OpcodeUtils implements Constants{
 
     private static final BitSet ifInstructionSet = new BitSet();
 
+    private static final BitSet returnInstructionSet = new BitSet();
+
+    private static final BitSet gotoInstructionSet = new BitSet();
+
     static {
         ifInstructionSet.set(Constants.IF_ACMPEQ);
         ifInstructionSet.set(Constants.IF_ACMPNE);
@@ -31,6 +35,16 @@ public class OpcodeUtils implements Constants{
         ifInstructionSet.set(Constants.IFGE);
         ifInstructionSet.set(Constants.IFNULL);
         ifInstructionSet.set(Constants.IFNONNULL);
+
+        returnInstructionSet.set(Constants.IRETURN);
+        returnInstructionSet.set(Constants.LRETURN);
+        returnInstructionSet.set(Constants.FRETURN);
+        returnInstructionSet.set(Constants.DRETURN);
+        returnInstructionSet.set(Constants.ARETURN);
+        returnInstructionSet.set(Constants.RETURN);
+
+        gotoInstructionSet.set(Constants.GOTO);
+        gotoInstructionSet.set(Constants.GOTO_W);
     }
 
 
@@ -50,5 +64,13 @@ public class OpcodeUtils implements Constants{
             return true;
         }
         return false;
+    }
+
+    public static boolean isReturn(int opcode) {
+        return returnInstructionSet.get(opcode);
+    }
+
+    public static boolean isGoto(int opcode) {
+        return gotoInstructionSet.get(opcode);
     }
 }

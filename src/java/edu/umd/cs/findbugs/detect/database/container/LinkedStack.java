@@ -37,4 +37,10 @@ public class LinkedStack<T> {
     public Integer size(){
         return linkedList.size();
     }
+
+
+    @Override
+    public String toString() {
+        return linkedList.toString();
+    }
 }

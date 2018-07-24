@@ -12,11 +12,6 @@ import java.util.logging.Logger;
  */
 public class SignatureMatcher {
 
-
-    private static final AnalysisCacheToRepositoryAdapter adapter = new AnalysisCacheToRepositoryAdapter();
-
-    private static final Logger LOGGER = Logger.getLogger(BadResourceCheck.class.getName());
-
     public static boolean matches(String sig1, String sig2){
         String returnType1 = SignatureUtils.getReturnType(sig1);
         String returnType2 = SignatureUtils.getReturnType(sig2);

@@ -1,6 +1,7 @@
 package edu.umd.cs.findbugs.detect.database;
 
 import edu.umd.cs.findbugs.BugInstance;
+import edu.umd.cs.findbugs.detect.database.container.BitSetBuffer;
 
 import java.util.*;
 
@@ -29,11 +30,9 @@ public class ResourceInstance {
     private Integer pc;
 
     /**
-     * 存放所在条件语句块
+     * 资源所在分支
      */
-    private Set<IfElseBlockLocation> inBlockSet = new HashSet<>();
-
-    private boolean removeForbidden = false;
+    private IfElseBranch branch;
 
     /**
      * 错误报告
@@ -71,19 +70,37 @@ public class ResourceInstance {
         this.pc = pc;
     }
 
-    public boolean addInBlock(IfElseBlockLocation location){
-        return inBlockSet.add(location);
+    public IfElseBranch getBranch() {
+        return branch;
     }
 
-    public Set<IfElseBlockLocation> getInBlockSet(){
-        return inBlockSet;
+    public void setBranch(IfElseBranch branch) {
+        this.branch = branch;
     }
 
-    public boolean isRemoveForbidden() {
-        return removeForbidden;
+    @Override
+    public String toString() {
+        return "ResourceInstance{" +
+               "resource=" + resource +
+               ", stackIndex=" + stackIndex +
+               ", pc=" + pc +
+               '}';
     }
 
-    public void setRemoveForbidden(boolean removeForbidden) {
-        this.removeForbidden = removeForbidden;
+    public BitSetBuffer getClosedRange() {
+        if (branch == null) {
+            return null;
+        }
+
+        BitSetBuffer range = branch.getRange();
+        if (range.get(pc)) {
+            return range;
+        }
+
+        BitSetBuffer exRange = branch.getExRange();
+        if (exRange.get(pc)) {
+            return exRange;
+        }
+        return null;
     }
 }

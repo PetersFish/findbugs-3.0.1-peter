@@ -1,305 +1,130 @@
 package edu.umd.cs.findbugs.detect.database;
 
-import edu.umd.cs.findbugs.detect.database.container.LinkedStack;
+import edu.umd.cs.findbugs.detect.database.container.BitSetBuffer;
 
-import java.util.*;
+import java.util.LinkedList;
+import java.util.TreeMap;
+import java.util.TreeSet;
 
 /**
- * IfElseBlock的管理功能类
- *
- * @author Peter Yu 2018/7/11 16:56
+ * @author Peter Yu 2018/7/18 11:41
  */
 public class IfElseBlockManager {
 
-    private Set<IfElseBlock> blockSet = new HashSet<>();// 记录所有的IfElseBlock
+    private LinkedList<IfElseBlock> blockList = new LinkedList<>();
 
-    private LinkedStack<BitSet> tempBranchStack = new LinkedStack<>();// 存储临时未归类的区间
-
-    private LinkedStack<Integer> currentIfBlockEndStack = new LinkedStack<>();;// 存储当前ifBlock的结尾
-
-    public boolean addBlock(IfElseBlock block) {
-        return blockSet.add(block);
-    }
-
-    /**
-     * 判断opcode是否在条件语句里面，返回集合
-     * map的key是IfElseBlock，value是具体的blockIndex
-     *
-     * @param seen
-     * @return
-     */
-    public Map<IfElseBlock, Map.Entry<Integer, BitSet>> inIfElseBlock(int seen) {
-        // 遍历所有block，进行判断
-        Map<IfElseBlock, Map.Entry<Integer, BitSet>> blockMap = new HashMap<>();
-        for (IfElseBlock block : blockSet) {
-            Map.Entry<Integer, BitSet> entry = block.inBlock(seen);
-            if (entry != null) {
-                blockMap.put(block, entry);
-            }
-        }
-        return blockMap;
-    }
-
-    /**
-     * 判断范围是否落在某个条件分支里面，并返回条件块和具体所在分支
-     * @param branch
-     * @return
-     */
-    public Map<IfElseBlock,Map.Entry<Integer,BitSet>> inIfElseBlock(BitSet branch) {
-        Map<IfElseBlock,Map.Entry<Integer,BitSet>> map = new HashMap<>();
-        for (IfElseBlock block : blockSet) {
-            Map<Integer, BitSet> branchMap = block.getBranchMap();
-            for (Map.Entry<Integer, BitSet> entry : branchMap.entrySet()) {
-                BitSet range = entry.getValue();
-                boolean include = include(range, branch);
-                if (include) {
-                    map.put(block, entry);
-                }
-            }
-        }
-        return map;
-    }
-
-    /**
-     * 判断区域是否落在某个IfElseBlock里面，并返回符合要求的IfElseBlock
-     * @param branchFallThrough
-     * @param branchTarget
-     * @return
-     */
-    public List<IfElseBlock> inIfElseBlock(int branchFallThrough, int branchTarget) {
-        BitSet target = new BitSet();
-        target.set(branchFallThrough, branchTarget);
-        // 遍历所有block，进行判断
-        List<IfElseBlock> blockList = new LinkedList<>();
-        for (IfElseBlock block : blockSet) {
-            BitSet wholeRange = block.getWholeRange();
-            boolean include = include(wholeRange, target);
-            if (include) {
-                blockList.add(block);
-            }
-        }
+    public LinkedList<IfElseBlock> getBlockList() {
         return blockList;
     }
 
-    /**
-     * 返回具体在哪个条件语句块当中
-     *
-     * @param seen
-     * @return
-     */
-    public Map.Entry<IfElseBlock, Map.Entry<Integer, BitSet>> inBaseIfElseBlock(int seen) {
-        Map<IfElseBlock, Map.Entry<Integer, BitSet>> blockEntryMap = inIfElseBlock(seen);
-
-        Integer minRange = null;
-        Map.Entry<IfElseBlock, Map.Entry<Integer, BitSet>> tempEntry = null;
-        // 遍历最小范围的情况
-        for (Map.Entry<IfElseBlock, Map.Entry<Integer, BitSet>> entry : blockEntryMap.entrySet()) {
-            IfElseBlock block = entry.getKey();
-            Map.Entry<Integer, BitSet> indexRangeEntry = entry.getValue();
-            if (minRange == null) {
-                minRange = indexRangeEntry.getValue().length();
-                tempEntry = entry;
-            } else {
-                int tempRange = indexRangeEntry.getValue().length();
-                if (minRange > tempRange) {
-                    minRange = tempRange;
-                    tempEntry = entry;
-                }
-            }
-        }
-
-        return tempEntry;
-    }
-
-    /*public IfElseBlock getFamily(int branchFallThrough, int branchTarget) {
-        List<IfElseBlock> blockList = inIfElseBlock(branchFallThrough, branchTarget);
-        Integer minRange = null;
-        IfElseBlock tempBlock = null;
+    public IfElseBlock getParent(IfElseBranch branch) {
+        // 遍历所有IfElseBlock2，找到匹配的
         for (IfElseBlock block : blockList) {
-            int tempRange = block.getWholeRange().length();
-            if(minRange == null){
-                minRange = tempRange;
-                tempBlock = block;
-            }else {
-                if(minRange > tempRange){
-                    minRange = tempRange;
-                    tempBlock = block;
-                }
-            }
-        }
-        // 需要再加一个防误报
-        if (tempBlock != null) {
-            boolean inBranch = tempBlock.inBranch(branchFallThrough, branchTarget);
-            // 还要加一个条件：goto不和tempBlock的边界一样
-            // branchTarget前一条opcode就是goto
-            boolean gotoEqual = isGotoEqual(branchTarget, tempBlock);
-
-            if (inBranch&&!gotoEqual) {
-                tempBlock = null;
-            }
-        }
-        return tempBlock;
-    }*/
-
-    /**
-     * 判断range是否包含target
-     * @param range
-     * @param target
-     * @return
-     */
-    private boolean include(BitSet range, BitSet target) {
-        BitSet tempSet = new BitSet();
-        tempSet.or(range);
-        tempSet.and(target);
-        return tempSet.equals(target);
-    }
-
-    /**
-     * 寻找当前块是否已经有所属组织
-     * @param blockEnd block结束点
-     * @param currentBlockLevel block层级
-     * @return
-     */
-    public IfElseBlock getFamily(int blockEnd, int currentBlockLevel) {
-        for (IfElseBlock block : blockSet) {
-            if(block.getElseBlockEnd() == blockEnd&&block.getBlockLevel() == currentBlockLevel){
+            boolean flag = block.compatible(branch);
+            if (flag) {
                 return block;
             }
         }
         return null;
     }
 
-    public IfElseBlock getFamily(int blockEnd) {
-        for (IfElseBlock block : blockSet) {
-            if(block.getElseBlockEnd() == blockEnd){
-                return block;
+    public boolean addBlock(IfElseBlock block) {
+        return blockList.add(block);
+    }
+
+    /**
+     * 通过分支结尾位置获取相应分支
+     * @param pc
+     * @return
+     */
+    public LinkedList<IfElseBranch> getBranchByBranchEnd(int pc) {
+
+        LinkedList<IfElseBranch> branches = new LinkedList<>();
+        for (IfElseBlock block : blockList) {
+            TreeSet<IfElseBranch> branchList = block.getBranchSet();
+            for (IfElseBranch branch : branchList) {
+                if(branch.getBranchEnd().equals(pc)){
+                    branches.add(branch);
+                }
+            }
+        }
+        return branches;
+    }
+
+    /**
+     * 将branch信息加入到资源实例当中
+     * @param resourceInstance
+     */
+    public void injectBranchInfo(ResourceInstance resourceInstance) {
+
+        Integer pc = resourceInstance.getPc();
+        if (pc == null) {
+            return;
+        }
+
+        // 获取pc所在的最小branch，将其放入实例
+        IfElseBranch minBranch = null;
+        for (IfElseBlock block : blockList) {
+
+            TreeSet<IfElseBranch> branchSet = block.getBranchSet();
+            IfElseBranch last = branchSet.last();
+            // 保证pc在范围内，不然就不需要遍历，找到了就break，不用再遍历
+            if(last.getWholeRange().get(pc)){
+
+                BitSetBuffer minRange = null;
+                for (IfElseBranch ifElseBranch : branchSet) {
+
+                    BitSetBuffer tempRange = ifElseBranch.inRange(pc);
+                    if (tempRange != null) {
+                        if (minRange == null) {
+                            minRange = tempRange;
+                            minBranch = ifElseBranch;
+                        }else {
+                            // 如果minRange的起始位置比tempRange小，说明minRange的范围要大，需更新
+                            if(minRange.getStart() < tempRange.getStart()){
+                                minRange = tempRange;
+                                minBranch = ifElseBranch;
+                            }
+                        }
+                    }
+                }
+                break;
+            }
+        }
+
+        resourceInstance.setBranch(minBranch);
+    }
+
+    /**
+     * 获得pc所在的所有条件分支
+     * @param closePc
+     * @return
+     */
+    public TreeMap<BitSetBuffer, Integer> getExistRanges(Integer closePc) {
+        IfElseBlock parent = getParent(closePc);
+        if (parent == null) {
+            return null;
+        }
+
+        return parent.getHosts(closePc);
+    }
+
+    /**
+     * 获取pc所在的IfElseBlock
+     * @param closePc
+     * @return
+     */
+    private IfElseBlock getParent(Integer closePc) {
+        // 遍历集合，找到所属的block
+        for (IfElseBlock block : blockList) {
+            TreeSet<IfElseBranch> branchSet = block.getBranchSet();
+            for (IfElseBranch branch : branchSet) {
+                BitSetBuffer wholeRange = branch.getWholeRange();
+                if (wholeRange.get(closePc)) {
+                    return block;
+                }
             }
         }
         return null;
-    }
-
-    /**
-     * 获得所有bracn在else分支里的IfElseBlock
-     * @param branch
-     * @return
-     */
-    public List<IfElseBlock> inElseBranch(BitSet branch){
-        List<IfElseBlock> list = new LinkedList<>();
-        for (IfElseBlock block : blockSet) {
-            BitSet elseBranch = block.getElseBlock();
-            boolean include = include(elseBranch, branch);
-            if (include) {
-                list.add(block);
-            }
-        }
-        return list;
-    }
-
-    /**
-     * 判断范围是否在一个基础else块里面
-     * @param branch
-     * @return
-     */
-    public boolean inBaseElseBranch(BitSet branch) {
-        Map<IfElseBlock, Map.Entry<Integer, BitSet>> map = inIfElseBlock(branch);
-        // 获取最小的所在分支，并判断改分支是否是else分支，如果是返回true
-        Integer blockIndex = null;
-        Integer minCardinality = null;
-        for (Map.Entry<Integer, BitSet> entry : map.values()) {
-            BitSet bitSet = entry.getValue();
-            Integer index = entry.getKey();
-            int cardinality = bitSet.cardinality();
-            if (minCardinality == null) {
-                blockIndex = index;
-                minCardinality = cardinality;
-            }else {
-                if(minCardinality > cardinality){
-                    blockIndex = index;
-                    minCardinality = cardinality;
-                }
-            }
-        }
-        if(blockIndex != null&&blockIndex == 0){
-            return true;
-        }
-        return false;
-    }
-
-    /**
-     * 解决层级误判：如果实际上没有elseBranch，则最后一个branch里面所有的IfElseBlock层级-1
-     * @param block
-     */
-    public void checkFalsePositive(IfElseBlock block) {
-        BitSet elseBlock = block.getElseBlock();
-        // elseBlock为空，需要检查误判
-        if(elseBlock.cardinality() == 0){
-            // 获得elseBlock上面一个ifBlock里面所有的IfElseBlock，将其层级-1
-            TreeMap<Integer, BitSet> branchMap = block.getBranchMap();
-            Integer lastIfBlockIndex = branchMap.lastKey();
-            BitSet lastIfBlock = branchMap.get(lastIfBlockIndex);
-            List<IfElseBlock> list = listIfElseBlockInRange(lastIfBlock);
-            for (IfElseBlock ifElseBlock : list) {
-                ifElseBlock.setBlockLevel(ifElseBlock.getBlockLevel()-1);
-            }
-        }
-    }
-
-    public List<IfElseBlock> listIfElseBlockInRange(BitSet range) {
-        List<IfElseBlock> list = new LinkedList<>();
-        for (IfElseBlock block : blockSet) {
-            BitSet wholeRange = block.getWholeRange();
-            boolean include = include(range, wholeRange);
-            if (include) {
-                list.add(block);
-            }
-        }
-        return list;
-    }
-
-    public IfElseBlock inBaseIfElseBlock(BitSet branch) {
-        Map<IfElseBlock, Map.Entry<Integer, BitSet>> map = inIfElseBlock(branch);
-        Integer minCardinality = null;
-        IfElseBlock tempBlock = null;
-        BitSet tempRange = null;
-        filterBlock(map, minCardinality, tempBlock, tempRange);
-        return tempBlock;
-    }
-
-    private void filterBlock(Map<IfElseBlock, Map.Entry<Integer, BitSet>> map, Integer minCardinality,
-                                       IfElseBlock tempBlock, BitSet tempRange) {
-        for (Map.Entry<IfElseBlock, Map.Entry<Integer, BitSet>> entry : map.entrySet()) {
-            IfElseBlock ifElseBlock = entry.getKey();
-            Map.Entry<Integer, BitSet> bitSetEntry = entry.getValue();
-            BitSet range = bitSetEntry.getValue();
-            int cardinality = range.cardinality();
-            if(minCardinality == null){
-                minCardinality = cardinality;
-                tempBlock = ifElseBlock;
-                tempRange = range;
-            }else {
-                if(minCardinality > cardinality){
-                    minCardinality = cardinality;
-                    tempBlock = ifElseBlock;
-                    tempRange = range;
-                }
-            }
-        }
-    }
-
-    public BitSet getBaseElseBranch(BitSet range) {
-        Map<IfElseBlock, Map.Entry<Integer, BitSet>> map = inIfElseBlock(range);
-        Integer minCardinality = null;
-        IfElseBlock tempBlock = null;
-        BitSet tempRange = null;
-        filterBlock(map, minCardinality, tempBlock, tempRange);
-        return tempRange;
-    }
-
-    public LinkedStack<BitSet> getTempBranchStack() {
-        return tempBranchStack;
-    }
-
-    public LinkedStack<Integer> getCurrentIfBlockEndStack() {
-        return currentIfBlockEndStack;
     }
 }
