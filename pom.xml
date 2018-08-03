@@ -10,7 +10,7 @@
 
     <groupId>com.google.code.findbugs</groupId>
     <artifactId>findbugs</artifactId>
-    <version>3.0.3-SNAPSHOT</version>
+    <version>3.0.3.1</version>
     <packaging>jar</packaging>
 
     <url>http://findbugs.sourceforge.net/</url>
@@ -268,7 +268,7 @@
     <distributionManagement>
         <repository>
             <id>yummm-release</id>
-            <url>http://www.yummm.cn:8081/nexus/content/groups/public/</url>
+            <url>http://www.yummm.cn:8081/nexus/content/repositories/releases/</url>
         </repository>
         <snapshotRepository>
             <id>yummm-snapshots</id>
@@ -276,7 +276,7 @@
         </snapshotRepository>
     </distributionManagement>
 
- <!--   <distributionManagement>
+    <!--<distributionManagement>
         <repository>
             <id>releases</id>
             <url>http://mvnrepo.alibaba-inc.com/mvn/releases</url>

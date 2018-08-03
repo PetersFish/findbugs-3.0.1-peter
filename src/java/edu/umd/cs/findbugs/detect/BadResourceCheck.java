@@ -13,7 +13,6 @@ import org.apache.bcel.classfile.*;
 import edu.umd.cs.findbugs.classfile.Global;
 
 import java.util.*;
-import java.util.logging.Logger;
 
 /**
  * @author Peter Yu
@@ -28,11 +27,13 @@ public class BadResourceCheck extends OpcodeStackDetector {
     public BadResourceCheck(BugReporter bugReporter,
                             Integer currentScanLevel,
                             Method currentSpecifiedMethod,
-                            Integer currentLookIntoLevel) {
+                            Integer currentLookIntoLevel,
+                            HashMap<Integer,ResourceTarget> upperLevelResourceRegMap) {
         this.bugReporter = bugReporter;
         this.currentScanLevel = currentScanLevel;
         this.currentSpecifiedMethod = currentSpecifiedMethod;
         this.currentLookIntoLevel = currentLookIntoLevel;
+        this.upperLevelResourceRegMap = upperLevelResourceRegMap;
     }
 
     private IAnalysisCache analysisCache = Global.getAnalysisCache();
@@ -50,6 +51,24 @@ public class BadResourceCheck extends OpcodeStackDetector {
     private IfElseBlockManager blockManager;
 
     private static final LinkedStack<IfElseBlockManager> blockManagerStack = new LinkedStack<>();
+
+    // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+    // ++++++++++++++++ close方法检测 相关 +++++++++++++++++++++++
+
+    // 以下两个参数只在isResourceCloseInvoke方法范围内有效，方法结束后要重置
+    /**
+     * 用于存放当前层特定方法的参数及其index
+     */
+    private HashMap<Integer,ResourceTarget> currentLikeResourceRegMap;
+
+    /**
+     * 用于接受上一层传递过来的currentLikeResourceRegMap
+     */
+    private HashMap<Integer,ResourceTarget> upperLevelResourceRegMap;
+
+    private HashMap<Integer,ResourceTarget> tempResourceRegMap;
+
 
     // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -319,6 +338,7 @@ public class BadResourceCheck extends OpcodeStackDetector {
         blockManager = new IfElseBlockManager();
         branchManager = new IfElseBranchManager();
         resourceClosed = new HashMap<>();
+        tempResourceRegMap = new HashMap<>();
     }
 
     @Override
@@ -486,14 +506,25 @@ public class BadResourceCheck extends OpcodeStackDetector {
                                                                           signature);
 
                 boolean resourceClose = isResourceCloseInvoke(targetOperation);
+
                 if (resourceClose) {
+
+
                     // 如果lastRegLoad=1，说明关闭的是参数里面的资源
                     if (currentSpecifiedMethod.isStatic()) {
-                        if (currentLevelLastRegLoad == 0) {
+                        ResourceTarget resourceTarget = upperLevelResourceRegMap.get(currentLevelLastRegLoad);
+                        // 如果有匹配的，则放入tempResourceRegMap
+                        if (resourceTarget != null) {
+                            resourceTarget.setRealTarget(true);
+                            tempResourceRegMap.put(currentLevelLastRegLoad, resourceTarget);
                             currentLookIntoReturnResource = resourceClose;
                         }
                     } else {
-                        if (currentLevelLastRegLoad == 1) {
+                        ResourceTarget resourceTarget = upperLevelResourceRegMap.get(currentLevelLastRegLoad - 1);
+                        // 如果有匹配的，则放入tempResourceRegMap
+                        if (resourceTarget != null) {
+                            resourceTarget.setRealTarget(true);
+                            tempResourceRegMap.put(currentLevelLastRegLoad, resourceTarget);
                             currentLookIntoReturnResource = resourceClose;
                         }
                     }
@@ -663,7 +694,7 @@ public class BadResourceCheck extends OpcodeStackDetector {
      * @param targetOperation
      * @return
      */
-    private boolean likeResourceCloseInvoke(ResourceOperation targetOperation) {
+    private boolean likeResourceCloseInvoke(ResourceOperation targetOperation){
 
         String methodName = targetOperation.getMethodName();
         if ("<init>".equals(methodName)) {
@@ -671,23 +702,23 @@ public class BadResourceCheck extends OpcodeStackDetector {
         }
         String signature = targetOperation.getSignature();
         SignatureParser parser = new SignatureParser(signature);
-        String returnTypeSignature = parser.getReturnTypeSignature();
-        // 如果不是void函数，返回false
-        if (!"V".equals(returnTypeSignature)) {
-            return false;
+        String[] arguments = parser.getArguments();
+
+        // 初始化currentLikeResourceRegMap
+        currentLikeResourceRegMap = new HashMap<>();
+        for (int i = 0; i < arguments.length; i++) {
+            String argument = arguments[i];
+            boolean invovlesResource = ResourceFactory.signatureInvovlesResource(argument);
+            if (invovlesResource) {
+                String paramClassName = SignatureUtils.trimArgument(argument);
+                currentLikeResourceRegMap.put(i, new ResourceTarget(paramClassName));
+            }
         }
 
-        // 遍历参数数组里面是否有资源类型的参数
-        String[] arguments = parser.getArguments();
-        if (arguments.length != 1) {
-            return false;
+        if (currentLikeResourceRegMap.size() > 0) {
+            return true;
         }
-        String argument = arguments[0];
-        String className = SignatureUtils.trimArgument(argument);
-        if (className != null) {
-            ResourceMacher macher = new ResourceMacher(className);
-            return macher.matches();
-        }
+
         return false;
     }
 
@@ -746,11 +777,19 @@ public class BadResourceCheck extends OpcodeStackDetector {
         // 思路同Open方法
         if (likeResourceCloseInvoke(targetOperation)) {
             boolean isResourceClose = lookIntoMethodWraper(targetOperation, LOOK_INTO_FOR_CLOSE_SCAN_LEVEL);
-            String closeClassName = SignatureUtils.getObjectParamClassName(targetOperation.getSignature());
+//            String closeClassName = SignatureUtils.getObjectParamClassName(targetOperation.getSignature());
             if (isResourceClose) {
-                if (closeClassName != null) {
-                    detector.appendOperation(closeClassName, targetOperation, CLOSE, WHITE);
+                // 遍历currentLikeResourceRegMap，将信息加入closeWhiteList
+                for (ResourceTarget resourceTarget : currentLikeResourceRegMap.values()) {
+                    boolean realTarget = resourceTarget.isRealTarget();
+                    String className = resourceTarget.getClassName();
+                    if (realTarget) {
+                        detector.appendOperation(className, targetOperation, CLOSE, WHITE);
+                    }
                 }
+//                if (closeClassName != null) {
+//                    detector.appendOperation(closeClassName, targetOperation, CLOSE, WHITE);
+//                }
                 return true;
             } else {
                 if (currentLookIntoLevel == 0) {
@@ -777,7 +816,6 @@ public class BadResourceCheck extends OpcodeStackDetector {
         specifiedMethodStack.push(currentSpecifiedMethod);
         scanLevelStack.push(currentScanLevel);
         blockManagerStack.push(blockManager);
-
         branchManagerStack.push(branchManager);
 
         boolean resource = false;
@@ -794,7 +832,6 @@ public class BadResourceCheck extends OpcodeStackDetector {
             currentSpecifiedMethod = specifiedMethodStack.pop();
             currentScanLevel = scanLevelStack.pop();
             blockManager = blockManagerStack.pop();
-
             branchManager = branchManagerStack.pop();
         }
 
@@ -828,8 +865,13 @@ public class BadResourceCheck extends OpcodeStackDetector {
                     BadResourceCheck badResourceCheck = new BadResourceCheck(bugReporter,
                                                                              currentScanLevel,
                                                                              currentSpecifiedMethod,
-                                                                             currentLookIntoLevel);
+                                                                             currentLookIntoLevel,
+                                                                             currentLikeResourceRegMap);
                     badResourceCheck.visitClassContext(classContext);
+
+                    // 将深入扫描得到的tempResourceRegMap（里层）赋值给currentLikeResourceRegMap
+                    currentLikeResourceRegMap.clear();
+                    currentLikeResourceRegMap.putAll(badResourceCheck.tempResourceRegMap);
 
                     // 如果是满足条件的资源开启或者关闭操作，则返回这个资源类型Resource
                     return badResourceCheck.currentLookIntoReturnResource;
