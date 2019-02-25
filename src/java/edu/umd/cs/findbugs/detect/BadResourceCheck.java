@@ -242,11 +242,6 @@ public class BadResourceCheck extends OpcodeStackDetector {
         if (DEBUG) {
             System.out.println("============== process debug mode ==============");
         }
-        /*if(currentScanLevel == RAW_SCAN_LEVEL){
-            if(!"com.nantian.ecm.cebecm.simpledemoa.Demo".equals(name)){
-                return;
-            }
-        }*/
 
         if (javaClassForScanWhitList.contains(jclass.getClassName())) {
             super.visitClassContext(classContext);
@@ -289,23 +284,6 @@ public class BadResourceCheck extends OpcodeStackDetector {
 
     @Override
     public void visit(Code obj) {
-
-        // only for test
-//        if (visitingMethod()) {
-//            if(currentScanLevel == RAW_SCAN_LEVEL){
-//                /*System.out.println("sourcefile" + getSourceFile());
-//                System.out.println("method:" + getMethod().getName());*/
-//                /*if(!"getImageCount".equals(getMethod().getName())){
-//                    return;
-//                }*/
-//                System.out.println("sourcefile" + getSourceFile());
-//                System.out.println("method:" + getMethod().getName());
-//            }
-//        }
-
-//        if(visitingMethod()){
-//            System.out.println("[analyse method:] "+getMethodName());
-//        }
 
         if (resourceSet.isEmpty()) {
             return;
@@ -353,9 +331,6 @@ public class BadResourceCheck extends OpcodeStackDetector {
                 // 如果其前面一条指令是invoke，则存储registerOperand
                 int prevOpcode = getPrevOpcode(1);
                 boolean isInvoke = OpcodeUtils.isInvoke(prevOpcode);
-//                if (getSourceFile().equals("NantianInnerDFC.java")) {
-//                    System.out.println(getRegisterOperand());
-//                }
                 if (isInvoke) {
                     int registerOperand = getRegisterOperand();
                     boolean addFlag = currentLevelCapturer.addStackIndex(registerOperand);
@@ -398,22 +373,12 @@ public class BadResourceCheck extends OpcodeStackDetector {
                         currentLevelCapturer.addInstance(resourceInstance);
 
                         blockManager.injectBranchInfo(resourceInstance);
-//                        System.out.println("++++++++++++++++++++++++++++++++++++++++");
-//                        System.out.println("[detected opened resource at:] "+getPC()+"pc");
-//                        System.out.println("resource type: "+resourceInstance.getResource().getClassName());
-//                        System.out.println("++++++++++++++++++++++++++++++++++++++++");
                     }
                     return;
                 }
 
                 // 如果是关闭资源的方法，则将资源从ResourceInstanceCapturer中去除，需要知道变量的statckIndex
                 boolean resourceClose = isResourceCloseInvoke(targetOperation);
-
-//                if(resourceClose){
-//                    System.out.println("[Notice] closeable method:"+targetOperation);
-//                }else {
-//                    System.out.println("[Notice] not closeable method:"+targetOperation);
-//                }
 
                 if (resourceClose) {
 

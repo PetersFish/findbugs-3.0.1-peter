@@ -10,7 +10,7 @@
 
     <groupId>com.google.code.findbugs</groupId>
     <artifactId>findbugs</artifactId>
-    <version>3.0.3.1</version>
+    <version>3.0.3.2-SNAPSHOT</version>
     <packaging>jar</packaging>
 
     <url>http://findbugs.sourceforge.net/</url>
@@ -267,16 +267,16 @@
 
     <distributionManagement>
         <repository>
-            <id>yummm-release</id>
-            <url>http://www.yummm.cn:8081/nexus/content/repositories/releases/</url>
+            <id>protome-release</id>
+            <url>http://www.protome.cn:8081/repository/maven-releases/</url>
         </repository>
         <snapshotRepository>
-            <id>yummm-snapshots</id>
-            <url>http://www.yummm.cn:8081/nexus/content/repositories/snapshots/</url>
+            <id>protome-snapshots</id>
+            <url>http://www.protome.cn:8081/repository/maven-snapshots/</url>
         </snapshotRepository>
     </distributionManagement>
-
-    <!--<distributionManagement>
+<!--
+    <distributionManagement>
         <repository>
             <id>releases</id>
             <url>http://mvnrepo.alibaba-inc.com/mvn/releases</url>
