@@ -326,174 +326,176 @@ public class BadResourceCheck extends OpcodeStackDetector {
 
         // 如果是最原始的代码扫描层，使用这套逻辑
         if (currentScanLevel == RAW_SCAN_LEVEL) {
-
-            if (seen == ASTORE || seen == ASTORE_0 || seen == ASTORE_1 || seen == ASTORE_2 || seen == ASTORE_3) {
-                // 如果其前面一条指令是invoke，则存储registerOperand
-                int prevOpcode = getPrevOpcode(1);
-                boolean isInvoke = OpcodeUtils.isInvoke(prevOpcode);
-                if (isInvoke) {
-                    int registerOperand = getRegisterOperand();
-                    boolean addFlag = currentLevelCapturer.addStackIndex(registerOperand);
-                }
-            }
-
-            if (seen == ALOAD || seen == ALOAD_0 || seen == ALOAD_1 || seen == ALOAD_2 || seen == ALOAD_3) {
-                currentLevelLastRegLoad = getRegisterOperand();
-            }
-
-            if (seen == ARETURN) {
-                // 判断返回的对象是不是开启的资源对象，通过变量的stackIndex（registerOperand）进行判断，
-                // 如果是，将其从capturer中消除（相当于关闭资源）
-                int prevOpcode = getPrevOpcode(1);
-                boolean isLoad = OpcodeUtils.isLoad(prevOpcode);
-                if (isLoad) {
-                    removeInstance(currentLevelCapturer, currentLevelLastRegLoad);
-                }
-            }
-
-            if (seen == INVOKEVIRTUAL || seen == INVOKESPECIAL || seen == INVOKESTATIC || seen == INVOKEINTERFACE) {
-                // 初始化指令码操作对象
-                String classConstantOperand = getClassConstantOperand();
-                String nameConstantOperand = getNameConstantOperand();
-                String signature = getMethodDescriptorOperand().getSignature();
-                ResourceOperation targetOperation = new ResourceOperation(classConstantOperand, nameConstantOperand,
-                                                                          signature);
-
-                // 如果是开启资源的方法，则建立资源实例，存储到ResourceInstanceCapturer当中去
-                boolean resourceOpen = isResourceOpenInvoke(targetOperation);
-                if (resourceOpen) {
-                    int nextOpcode = getNextOpcode();
-                    // (加一个前提条件后面的一个操作码不是ARETURN)
-                    if (nextOpcode != ARETURN) {
-                        BugInstance bugInstance = new BugInstance(this, "RESOURCE_NOT_RELEASED", HIGH_PRIORITY)
-                                .addClassAndMethod(this).addSourceLine(this, getPC());
-                        ResourceInstance resourceInstance = new ResourceInstance(
-                                targetOperation.getInvolvedResourceForOpenInvoke(), null, getPC(), bugInstance);
-                        // 并且要把ResourceInstanceCapturer的valve打开，方便下个指令码扫描时，加入stackIndex
-                        currentLevelCapturer.addInstance(resourceInstance);
-
-                        blockManager.injectBranchInfo(resourceInstance);
-                    }
-                    return;
-                }
-
-                // 如果是关闭资源的方法，则将资源从ResourceInstanceCapturer中去除，需要知道变量的statckIndex
-                boolean resourceClose = isResourceCloseInvoke(targetOperation);
-
-                if (resourceClose) {
-
-//                    System.out.println("[Notice] prepare to close resource...");
-                    removeInstance(currentLevelCapturer, currentLevelLastRegLoad);
-                    currentLevelLastRegLoad = null;
-                }
-                return;
-            }
+            scanCurrentLevel(seen);
         }
-
         // 如果是深入扫描指定的某个方法的内部寻找资源Open相关信息，则使用这套逻辑
-        if (currentScanLevel == LOOK_INTO_FOR_OPEN_SCAN_LEVEL) {
-
-            if (seen == ASTORE || seen == ASTORE_0 || seen == ASTORE_1 || seen == ASTORE_2 || seen == ASTORE_3) {
-                int registerOperand = getRegisterOperand();
-                boolean addFlag = currentLevelCapturer.addStackIndex(registerOperand);
-            }
-
-            if (seen == ALOAD || seen == ALOAD_0 || seen == ALOAD_1 || seen == ALOAD_2 || seen == ALOAD_3) {
-                currentLevelLastRegLoad = getRegisterOperand();
-            }
-
-            if (seen == ARETURN) {
-                // 判断返回的对象是不是开启的资源对象，通过变量的stackIndex（registerOperand）进行判断，
-                // 如果是，将资源类型存到lookIntoReturnResource里面
-                int prevOpcode = getPrevOpcode(1);
-                boolean isLoad = OpcodeUtils.isLoad(prevOpcode);
-                if (isLoad) {
-                    currentLookIntoReturnResource = removeInstance(currentLevelCapturer, currentLevelLastRegLoad);
-                    currentLevelLastRegLoad = null;
-                }
-            }
-
-            // 如果在本层发现有资源创建，并作为返回值，则说明有方法，需要返回true，
-            // 这个true存在哪里好呢,存在lookIntoResultMap里面
-            if (seen == INVOKEVIRTUAL || seen == INVOKESPECIAL || seen == INVOKESTATIC || seen == INVOKEINTERFACE) {
-                // 初始化指令码操作对象
-                String classConstantOperand = getClassConstantOperand();
-                String nameConstantOperand = getNameConstantOperand();
-                String signature = getMethodDescriptorOperand().getSignature();
-                ResourceOperation targetOperation = new ResourceOperation(classConstantOperand, nameConstantOperand,
-                                                                          signature);
-
-                boolean resourceOpen = isResourceOpenInvoke(targetOperation);
-
-                if (resourceOpen) {
-                    // 需要将资源对象存起来，等到方法走到返回的地方时
-                    // 查看返回的对象statckIndex是否和记录下来的资源对象的statckIndex相匹配
-                    // 如果相匹配，将资源对象的种类Resource存起来，怎么存？用栈结构存储
-                    // 如果nextOpcode是ARETURN，则直接将Resource赋值给lookIntoResource
-                    int nextOpcode = getNextOpcode();
-                    if (nextOpcode != ARETURN) {
-                        ResourceInstance instance = new ResourceInstance(
-                                targetOperation.getInvolvedResourceForOpenInvoke(), null, getPC(), null);
-                        currentLevelCapturer.addInstance(instance);
-                        blockManager.injectBranchInfo(instance);
-
-//                        System.out.println("lookinto open level:"+instance);
-                    } else {
-                        currentLookIntoReturnResource = resourceOpen;
-                    }
-
-                    return;
-                }
-
-                boolean resourceClose = isResourceCloseInvoke(targetOperation);
-
-                if (resourceClose) {
-                    removeInstance(currentLevelCapturer, currentLevelLastRegLoad);
-                    currentLevelLastRegLoad = null;
-                }
-                return;
-            }
+        else if (currentScanLevel == LOOK_INTO_FOR_OPEN_SCAN_LEVEL) {
+            scanSubOpenLevel(seen);
         }
 
         // 如果是深入扫描指定的某个方法的内部寻找资源Close相关信息，则使用这套逻辑
-        if (currentScanLevel == LOOK_INTO_FOR_CLOSE_SCAN_LEVEL) {
+        else if (currentScanLevel == LOOK_INTO_FOR_CLOSE_SCAN_LEVEL) {
+            scanSubCloseLevel(seen);
+        }
+    }
 
-            if (seen == ALOAD || seen == ALOAD_0 || seen == ALOAD_1 || seen == ALOAD_2 || seen == ALOAD_3) {
-                currentLevelLastRegLoad = getRegisterOperand();
-            }
+    private void scanSubCloseLevel(int seen) {
+        if (seen == ALOAD || seen == ALOAD_0 || seen == ALOAD_1 || seen == ALOAD_2 || seen == ALOAD_3) {
+            currentLevelLastRegLoad = getRegisterOperand();
+        }
 
-            if (seen == INVOKEVIRTUAL || seen == INVOKESPECIAL || seen == INVOKESTATIC || seen == INVOKEINTERFACE) {
-                // 初始化指令码操作对象
-                String classConstantOperand = getClassConstantOperand();
-                String nameConstantOperand = getNameConstantOperand();
-                String signature = getMethodDescriptorOperand().getSignature();
-                ResourceOperation targetOperation = new ResourceOperation(classConstantOperand, nameConstantOperand,
-                                                                          signature);
+        if (seen == INVOKEVIRTUAL || seen == INVOKESPECIAL || seen == INVOKESTATIC || seen == INVOKEINTERFACE) {
+            // 初始化指令码操作对象
+            String classConstantOperand = getClassConstantOperand();
+            String nameConstantOperand = getNameConstantOperand();
+            String signature = getMethodDescriptorOperand().getSignature();
+            ResourceOperation targetOperation = new ResourceOperation(classConstantOperand, nameConstantOperand,
+                                                                      signature);
 
-                boolean resourceClose = isResourceCloseInvoke(targetOperation);
+            boolean resourceClose = isResourceCloseInvoke(targetOperation);
 
-                if (resourceClose) {
+            if (resourceClose) {
 
 
-                    // 如果lastRegLoad=1，说明关闭的是参数里面的资源
-                    if (currentSpecifiedMethod.isStatic()) {
-                        ResourceTarget resourceTarget = upperLevelResourceRegMap.get(currentLevelLastRegLoad);
-                        // 如果有匹配的，则放入tempResourceRegMap
-                        if (resourceTarget != null) {
-                            resourceTarget.setRealTarget(true);
-                            tempResourceRegMap.put(currentLevelLastRegLoad, resourceTarget);
-                            currentLookIntoReturnResource = resourceClose;
-                        }
-                    } else {
-                        ResourceTarget resourceTarget = upperLevelResourceRegMap.get(currentLevelLastRegLoad - 1);
-                        // 如果有匹配的，则放入tempResourceRegMap
-                        if (resourceTarget != null) {
-                            resourceTarget.setRealTarget(true);
-                            tempResourceRegMap.put(currentLevelLastRegLoad, resourceTarget);
-                            currentLookIntoReturnResource = resourceClose;
-                        }
+                // 如果lastRegLoad=1，说明关闭的是参数里面的资源
+                if (currentSpecifiedMethod.isStatic()) {
+                    ResourceTarget resourceTarget = upperLevelResourceRegMap.get(currentLevelLastRegLoad);
+                    // 如果有匹配的，则放入tempResourceRegMap
+                    if (resourceTarget != null) {
+                        resourceTarget.setRealTarget(true);
+                        tempResourceRegMap.put(currentLevelLastRegLoad, resourceTarget);
+                        currentLookIntoReturnResource = resourceClose;
+                    }
+                } else {
+                    ResourceTarget resourceTarget = upperLevelResourceRegMap.get(currentLevelLastRegLoad - 1);
+                    // 如果有匹配的，则放入tempResourceRegMap
+                    if (resourceTarget != null) {
+                        resourceTarget.setRealTarget(true);
+                        tempResourceRegMap.put(currentLevelLastRegLoad, resourceTarget);
+                        currentLookIntoReturnResource = resourceClose;
                     }
                 }
+            }
+        }
+    }
+
+    private void scanSubOpenLevel(int seen) {
+        if (seen == ASTORE || seen == ASTORE_0 || seen == ASTORE_1 || seen == ASTORE_2 || seen == ASTORE_3) {
+            int registerOperand = getRegisterOperand();
+            boolean addFlag = currentLevelCapturer.addStackIndex(registerOperand);
+        }
+
+        if (seen == ALOAD || seen == ALOAD_0 || seen == ALOAD_1 || seen == ALOAD_2 || seen == ALOAD_3) {
+            currentLevelLastRegLoad = getRegisterOperand();
+        }
+
+        if (seen == ARETURN) {
+            // 判断返回的对象是不是开启的资源对象，通过变量的stackIndex（registerOperand）进行判断，
+            // 如果是，将资源类型存到lookIntoReturnResource里面
+            int prevOpcode = getPrevOpcode(1);
+            boolean isLoad = OpcodeUtils.isLoad(prevOpcode);
+            if (isLoad) {
+                currentLookIntoReturnResource = removeInstance(currentLevelCapturer, currentLevelLastRegLoad);
+                currentLevelLastRegLoad = null;
+            }
+        }
+
+        // 如果在本层发现有资源创建，并作为返回值，则说明有方法，需要返回true，
+        // 这个true存在哪里好呢,存在lookIntoResultMap里面
+        if (seen == INVOKEVIRTUAL || seen == INVOKESPECIAL || seen == INVOKESTATIC || seen == INVOKEINTERFACE) {
+            // 初始化指令码操作对象
+            String classConstantOperand = getClassConstantOperand();
+            String nameConstantOperand = getNameConstantOperand();
+            String signature = getMethodDescriptorOperand().getSignature();
+            ResourceOperation targetOperation = new ResourceOperation(classConstantOperand, nameConstantOperand,
+                                                                      signature);
+
+            boolean resourceOpen = isResourceOpenInvoke(targetOperation);
+
+            if (resourceOpen) {
+                // 需要将资源对象存起来，等到方法走到返回的地方时
+                // 查看返回的对象statckIndex是否和记录下来的资源对象的statckIndex相匹配
+                // 如果相匹配，将资源对象的种类Resource存起来，怎么存？用栈结构存储
+                // 如果nextOpcode是ARETURN，则直接将Resource赋值给lookIntoResource
+                int nextOpcode = getNextOpcode();
+                if (nextOpcode != ARETURN) {
+                    ResourceInstance instance = new ResourceInstance(
+                            targetOperation.getInvolvedResourceForOpenInvoke(), null, getPC(), null);
+                    currentLevelCapturer.addInstance(instance);
+                    blockManager.injectBranchInfo(instance);
+                } else {
+                    currentLookIntoReturnResource = resourceOpen;
+                }
+
+                return;
+            }
+
+            boolean resourceClose = isResourceCloseInvoke(targetOperation);
+
+            if (resourceClose) {
+                removeInstance(currentLevelCapturer, currentLevelLastRegLoad);
+                currentLevelLastRegLoad = null;
+            }
+        }
+    }
+
+    private void scanCurrentLevel(int seen) {
+        if (seen == ASTORE || seen == ASTORE_0 || seen == ASTORE_1 || seen == ASTORE_2 || seen == ASTORE_3) {
+            // 如果其前面一条指令是invoke，则存储registerOperand
+            int prevOpcode = getPrevOpcode(1);
+            boolean isInvoke = OpcodeUtils.isInvoke(prevOpcode);
+            if (isInvoke) {
+                int registerOperand = getRegisterOperand();
+                currentLevelCapturer.addStackIndex(registerOperand);
+            }
+        }
+
+        if (seen == ALOAD || seen == ALOAD_0 || seen == ALOAD_1 || seen == ALOAD_2 || seen == ALOAD_3) {
+            currentLevelLastRegLoad = getRegisterOperand();
+        }
+
+        if (seen == ARETURN) {
+            // 判断返回的对象是不是开启的资源对象，通过变量的stackIndex（registerOperand）进行判断，
+            // 如果是，将其从capturer中消除（相当于关闭资源）
+            int prevOpcode = getPrevOpcode(1);
+            boolean isLoad = OpcodeUtils.isLoad(prevOpcode);
+            if (isLoad) {
+                removeInstance(currentLevelCapturer, currentLevelLastRegLoad);
+            }
+        }
+
+        if (seen == INVOKEVIRTUAL || seen == INVOKESPECIAL || seen == INVOKESTATIC || seen == INVOKEINTERFACE) {
+            // 初始化指令码操作对象
+            String classConstantOperand = getClassConstantOperand();
+            String nameConstantOperand = getNameConstantOperand();
+            String signature = getMethodDescriptorOperand().getSignature();
+            ResourceOperation targetOperation = new ResourceOperation(classConstantOperand, nameConstantOperand,
+                                                                      signature);
+
+            // 如果是开启资源的方法，则建立资源实例，存储到ResourceInstanceCapturer当中去
+            boolean resourceOpen = isResourceOpenInvoke(targetOperation);
+            if (resourceOpen) {
+                int nextOpcode = getNextOpcode();
+                // (加一个前提条件后面的一个操作码不是ARETURN)
+                if (nextOpcode != ARETURN) {
+                    BugInstance bugInstance = new BugInstance(this, "RESOURCE_NOT_RELEASED", HIGH_PRIORITY)
+                            .addClassAndMethod(this).addSourceLine(this, getPC());
+                    ResourceInstance resourceInstance = new ResourceInstance(
+                            targetOperation.getInvolvedResourceForOpenInvoke(), null, getPC(), bugInstance);
+                    // 并且要把ResourceInstanceCapturer的valve打开，方便下个指令码扫描时，加入stackIndex
+                    currentLevelCapturer.addInstance(resourceInstance);
+
+                    blockManager.injectBranchInfo(resourceInstance);
+                }
+                return;
+            }
+
+            // 如果是关闭资源的方法，则将资源从ResourceInstanceCapturer中去除，需要知道变量的statckIndex
+            boolean resourceClose = isResourceCloseInvoke(targetOperation);
+
+            if (resourceClose) {
+                removeInstance(currentLevelCapturer, currentLevelLastRegLoad);
+                currentLevelLastRegLoad = null;
             }
         }
     }
