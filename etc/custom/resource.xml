@@ -1,4 +1,4 @@
-<Resources xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+<Resources scanMode="fieldMode" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
            xsi:noNamespaceSchemaLocation="resource.xsd">
     <!--<Resource className="java.io.OutputStream">
         <addMethods>

@@ -7,6 +7,7 @@
         <xsd:sequence>
             <xsd:element name="Resource" type="ResourceType" minOccurs="0" maxOccurs="unbounded"/>
         </xsd:sequence>
+        <xsd:attribute name="scanMode" type="xsd:string"/>
     </xsd:complexType>
 
     <xsd:complexType name="ResourceType">
