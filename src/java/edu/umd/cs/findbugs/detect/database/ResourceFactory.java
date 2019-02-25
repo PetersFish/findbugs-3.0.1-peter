@@ -1,7 +1,9 @@
 package edu.umd.cs.findbugs.detect.database;
 
 
+import edu.umd.cs.findbugs.detect.constant.ScanMode;
 import org.apache.commons.lang.StringUtils;
+import org.dom4j.Attribute;
 import org.dom4j.Document;
 import org.dom4j.DocumentException;
 import org.dom4j.Element;
@@ -28,6 +30,8 @@ public class ResourceFactory {
     private static Integer MAX_LOOK_INTO_LEVEL = 2;
 
     private static final Set<Resource> resourceSet;
+
+    private static ScanMode scanMode = ScanMode.VARIABLE;
 
     // 初始化所有资源，将生成的资源放入resourceSet
     static {
@@ -139,6 +143,7 @@ public class ResourceFactory {
 
     private static void extractResource(Document document) {
         Element rootElement = document.getRootElement();
+        scanMode = ScanMode.parse(rootElement.attribute("scanMode").getStringValue());
         List<Element> resourceList = rootElement.elements("Resource");
         for (Element element : resourceList) {
             String className = element.attribute("className").getValue();
