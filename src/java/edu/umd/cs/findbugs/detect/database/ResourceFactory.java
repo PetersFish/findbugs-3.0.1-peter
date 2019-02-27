@@ -169,6 +169,9 @@ public class ResourceFactory {
     }
 
     public static Integer getMaxLookIntoLevel() {
+//        if (isFieldMode()) {
+//            return 1;
+//        }
         return MAX_LOOK_INTO_LEVEL;
     }
 
@@ -180,4 +183,7 @@ public class ResourceFactory {
         loadResources();
     }
 
+    public static boolean isFieldMode() {
+        return scanMode.equals(ScanMode.FIELD);
+    }
 }

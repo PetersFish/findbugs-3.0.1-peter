@@ -1,9 +1,7 @@
 package edu.umd.cs.findbugs.detect.database;
 
-import java.util.BitSet;
 import java.util.Iterator;
 import java.util.LinkedList;
-import java.util.List;
 
 /**
  * @author Peter Yu 2018/7/17 17:51

@@ -19,15 +19,9 @@ public class ResourceInstanceCapturer {
 
     private HashMap<Integer,ResourceInstance> lastClosedMap = new HashMap<>();
 
-    private boolean valve = false;
+    private boolean stackIndexValve = false;
 
-    public void setValve(boolean valve) {
-        this.valve = valve;
-    }
-
-    public boolean isValve() {
-        return valve;
-    }
+    private boolean fieldValve = false;
 
     /**
      * 添加资源变量，仅在指令被确定为是开启资源的时候调用
@@ -36,7 +30,8 @@ public class ResourceInstanceCapturer {
      * @return
      */
     public boolean addInstance(ResourceInstance instance) {
-        valve = true;
+        stackIndexValve = true;
+        fieldValve = true;
         return instanceList.add(instance);
     }
 
@@ -48,17 +43,33 @@ public class ResourceInstanceCapturer {
      * @return
      */
     public boolean addStackIndex(Integer registerOperand) {
-        if (valve) {
+        if (stackIndexValve) {
             if(instanceList.size() == 0){
                 return false;
             }
             ResourceInstance lastInstance = instanceList.getLast();
             lastInstance.setStackIndex(registerOperand);
-            ResourceInstance set = instanceList.set(instanceList.size() - 1, lastInstance);
-            valve = false;
+            stackIndexValve = false;
             return true;
         }
         return false;
+    }
+
+    public void addFieldName(String fieldName){
+        if (fieldValve) {
+            if (!instanceList.isEmpty()) {
+                ResourceInstance instance = instanceList.getLast();
+                instance.setFieldName(fieldName);
+                fieldValve = false;
+            }
+        }
+    }
+
+    public ResourceInstance lastInstance(){
+        if (instanceList.isEmpty()) {
+            return null;
+        }
+        return instanceList.getLast();
     }
 
     public boolean isInstanceExist(Integer registerOperand) {

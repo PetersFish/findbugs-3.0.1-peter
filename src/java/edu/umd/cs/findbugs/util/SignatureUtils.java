@@ -27,6 +27,11 @@ public class SignatureUtils {
         return returnTypeSignature.startsWith("L");
     }
 
+    public static boolean nonParam(String signature){
+        SignatureParser parser = new SignatureParser(signature);
+        return parser.getNumParameters() == 0;
+    }
+
     public static boolean isObjectParam(String signature){
         SignatureParser parser = new SignatureParser(signature);
         String parameter = parser.getParameter(0);

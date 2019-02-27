@@ -18,6 +18,8 @@ public class OpcodeUtils implements Constants{
 
     private static final BitSet gotoInstructionSet = new BitSet();
 
+    private static final BitSet astoreSet = new BitSet();
+
     static {
         ifInstructionSet.set(Constants.IF_ACMPEQ);
         ifInstructionSet.set(Constants.IF_ACMPNE);
@@ -45,6 +47,12 @@ public class OpcodeUtils implements Constants{
 
         gotoInstructionSet.set(Constants.GOTO);
         gotoInstructionSet.set(Constants.GOTO_W);
+
+        astoreSet.set(Constants.ASTORE);
+        astoreSet.set(Constants.ASTORE_0);
+        astoreSet.set(Constants.ASTORE_1);
+        astoreSet.set(Constants.ASTORE_2);
+        astoreSet.set(Constants.ASTORE_3);
     }
 
 
@@ -53,17 +61,18 @@ public class OpcodeUtils implements Constants{
     }
 
     public static boolean isLoad(int opcode){
-        if(opcode == ALOAD||opcode == ALOAD_0||opcode == ALOAD_1||opcode == ALOAD_2||opcode == ALOAD_3){
-            return true;
-        }
-        return false;
+        return opcode == ALOAD
+               || opcode == ALOAD_0
+               || opcode == ALOAD_1
+               || opcode == ALOAD_2
+               || opcode == ALOAD_3;
     }
 
     public static boolean isInvoke(int opcode) {
-        if(opcode == INVOKEVIRTUAL||opcode == INVOKESPECIAL||opcode == INVOKESTATIC||opcode == INVOKEINTERFACE){
-            return true;
-        }
-        return false;
+        return opcode == INVOKEVIRTUAL
+               || opcode == INVOKESPECIAL
+               || opcode == INVOKESTATIC
+               || opcode == INVOKEINTERFACE;
     }
 
     public static boolean isReturn(int opcode) {
@@ -72,5 +81,9 @@ public class OpcodeUtils implements Constants{
 
     public static boolean isGoto(int opcode) {
         return gotoInstructionSet.get(opcode);
+    }
+
+    public static boolean isStore(int opcode){
+        return astoreSet.get(opcode);
     }
 }

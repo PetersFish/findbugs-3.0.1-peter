@@ -35,6 +35,11 @@ public class ResourceInstance {
     private IfElseBranch branch;
 
     /**
+     * 属性变量名：如果resource是属性，则记录变量名
+     */
+    private String fieldName;
+
+    /**
      * 错误报告
      */
     private final BugInstance bugInstance;
@@ -78,12 +83,21 @@ public class ResourceInstance {
         this.branch = branch;
     }
 
+    public String getFieldName() {
+        return fieldName;
+    }
+
+    public void setFieldName(String fieldName) {
+        this.fieldName = fieldName;
+    }
+
     @Override
     public String toString() {
         return "ResourceInstance{" +
                "resource=" + resource +
                ", stackIndex=" + stackIndex +
                ", pc=" + pc +
+               ", fieldName='" + fieldName + '\'' +
                '}';
     }
 

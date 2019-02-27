@@ -1,5 +1,6 @@
 package edu.umd.cs.findbugs.detect.database;
 
+import edu.umd.cs.findbugs.detect.constant.OperationConstants;
 import edu.umd.cs.findbugs.util.SignatureUtils;
 
 import java.util.HashMap;
@@ -12,7 +13,7 @@ import java.util.Set;
  * @author Peter Yu
  * @date 2018/6/14 10:18
  */
-public class ResourceOperationDetector {
+public class ResourceOperationDetector implements OperationConstants {
 
     {
         openWhiteMap = new HashMap<>();
@@ -21,12 +22,6 @@ public class ResourceOperationDetector {
         closeBlackMap = new HashMap<>();
         init();
     }
-
-    private static final String OPEN = "OPEN";
-    private static final String CLOSE = "CLOSE";
-    private static final String WHITE = "WHITE";
-    private static final String BLACK = "BLACK";
-    private static final String OBJECT = "java.lang.Object";
 
     private Map<String,Set<ResourceOperation>> openWhiteMap;
 
@@ -122,7 +117,7 @@ public class ResourceOperationDetector {
         return operations.contains(targetOperation);
     }
 
-    public boolean inCloseWhitList(ResourceOperation targetOperation){
+    public boolean inCloseWhiteList(ResourceOperation targetOperation){
         String closeClassName = SignatureUtils.getObjectParamClassName(targetOperation.getSignature());
         if (closeClassName == null) {
             closeClassName = targetOperation.getClazzName();

@@ -3,6 +3,9 @@ package edu.umd.cs.findbugs.detect.database;
 import edu.umd.cs.findbugs.util.SignatureUtils;
 import org.apache.commons.lang.StringUtils;
 
+import java.util.HashSet;
+import java.util.Set;
+
 /**
  * 描述资源操作的Class name，name and type，以及操作类型，以及操作检查的迫切程度
  *
@@ -16,6 +19,9 @@ public class ResourceOperation {
     private final String methodName;
 
     private final String signature;
+
+    // todo: new func
+    private final Set<String> fields = new HashSet<>();
 
     private static final String INIT_METHOD = "<init>";
 
@@ -65,6 +71,10 @@ public class ResourceOperation {
         return signature;
     }
 
+    public void addFields(Set<String> fields){
+        this.fields.addAll(fields);
+    }
+
     @Override
     public int hashCode() {
         String[] arr = { clazzName, methodName, signature };
@@ -94,4 +104,7 @@ public class ResourceOperation {
                '}';
     }
 
+    public Set<String> getFields() {
+        return fields;
+    }
 }
