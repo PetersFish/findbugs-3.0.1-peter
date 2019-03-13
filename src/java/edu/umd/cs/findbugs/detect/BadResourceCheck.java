@@ -1,24 +1,23 @@
 package edu.umd.cs.findbugs.detect;
 
 import edu.umd.cs.findbugs.*;
-import edu.umd.cs.findbugs.ba.*;
-import edu.umd.cs.findbugs.bcel.OpcodeStackDetector;
-import edu.umd.cs.findbugs.classfile.*;
+import edu.umd.cs.findbugs.ba.SignatureParser;
+import edu.umd.cs.findbugs.ba.XField;
+import edu.umd.cs.findbugs.classfile.Global;
+import edu.umd.cs.findbugs.classfile.IAnalysisCache;
 import edu.umd.cs.findbugs.detect.database.*;
 import edu.umd.cs.findbugs.detect.database.container.BitSetBuffer;
 import edu.umd.cs.findbugs.detect.database.container.LinkedStack;
-import edu.umd.cs.findbugs.util.OpcodeUtils;
 import edu.umd.cs.findbugs.util.SignatureUtils;
 import org.apache.bcel.classfile.*;
 
 import java.util.*;
-import java.util.logging.Logger;
 
 /**
  * @author Peter Yu
  * @date 2018/6/1 17:32
  */
-public class BadResourceCheck extends OpcodeStackDetector {
+public class BadResourceCheck extends edu.umd.cs.findbugs.bcel.OpcodeStackDetector {
 
     public BadResourceCheck(BugReporter bugReporter) {
         this.bugReporter = bugReporter;
@@ -46,11 +45,11 @@ public class BadResourceCheck extends OpcodeStackDetector {
 
     private IfElseBranchManager branchManager;
 
-    private static final LinkedStack<IfElseBranchManager> branchManagerStack = new LinkedStack<>();
+    private static final LinkedStack<IfElseBranchManager> branchManagerStack = new LinkedStack<IfElseBranchManager>();
 
     private IfElseBlockManager blockManager;
 
-    private static final LinkedStack<IfElseBlockManager> blockManagerStack = new LinkedStack<>();
+    private static final LinkedStack<IfElseBlockManager> blockManagerStack = new LinkedStack<IfElseBlockManager>();
 
     // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -60,7 +59,7 @@ public class BadResourceCheck extends OpcodeStackDetector {
     /**
      * 用于存放当前层特定方法的参数及其index
      */
-    private HashMap<Integer, ResourceTarget> currentLikeResourceRegMap = new HashMap<>();
+    private HashMap<Integer, ResourceTarget> currentLikeResourceRegMap = new HashMap<Integer, ResourceTarget>();
 
     /**
      * 用于接受上一层传递过来的currentLikeResourceRegMap
@@ -74,12 +73,12 @@ public class BadResourceCheck extends OpcodeStackDetector {
     /**
      * 用于存放需要扫描的JavaClass的白名单
      */
-    private static final Set<String> javaClassForScanWhitList = new HashSet<>();
+    private static final Set<String> javaClassForScanWhitList = new HashSet<String>();
 
     /**
      * 用于存放不扫描的JavaClass的黑名单
      */
-    private static final Set<String> javaClassForScanBlackList = new HashSet<>();
+    private static final Set<String> javaClassForScanBlackList = new HashSet<String>();
 
     /**
      * 加载所有定义的资源
@@ -106,7 +105,7 @@ public class BadResourceCheck extends OpcodeStackDetector {
      */
     private Boolean currentLookIntoReturnResource = false;
 
-    private static final LinkedStack<Boolean> lookIntoReturnResourceStack = new LinkedStack<>();
+    private static final LinkedStack<Boolean> lookIntoReturnResourceStack = new LinkedStack<Boolean>();
 
     /**
      * 当前层资源变量存储容器
@@ -116,14 +115,14 @@ public class BadResourceCheck extends OpcodeStackDetector {
     /**
      * 存储所有层的lookIntoLevelTempCapturer
      */
-    private static final LinkedStack<ResourceInstanceCapturer> capturerStack = new LinkedStack<>();
+    private static final LinkedStack<ResourceInstanceCapturer> capturerStack = new LinkedStack<ResourceInstanceCapturer>();
 
     /**
      * 存储aload出来的变量
      */
     private Integer currentLevelLastRegLoad = null;
 
-    private static final LinkedStack<Integer> lastRegLoadStack = new LinkedStack<>();
+    private static final LinkedStack<Integer> lastRegLoadStack = new LinkedStack<Integer>();
 
     /**
      * lookInto时被指定要扫描的方法
@@ -133,7 +132,7 @@ public class BadResourceCheck extends OpcodeStackDetector {
     /**
      * 用于存放多层lookInto时，指定扫描的方法的栈存储
      */
-    private static final LinkedStack<Method> specifiedMethodStack = new LinkedStack<>();
+    private static final LinkedStack<Method> specifiedMethodStack = new LinkedStack<Method>();
 
     /**
      * 原始层扫描的标记
@@ -175,26 +174,26 @@ public class BadResourceCheck extends OpcodeStackDetector {
      */
     private static final int MAX_LOOK_INTO_LEVEL = ResourceFactory.getMaxLookIntoLevel();
 
-    private static final LinkedStack<Integer> scanLevelStack = new LinkedStack<>();
+    private static final LinkedStack<Integer> scanLevelStack = new LinkedStack<Integer>();
 
-    private static Set<String> lastLevelResourceFieldNames = new HashSet<>();
+    private static Set<String> lastLevelResourceFieldNames = new HashSet<String>();
 
     private String lastFieldName;
 
     @Override
     public boolean atCatchBlock() {
-        ClassContext context = getClassContext();
+        edu.umd.cs.findbugs.ba.ClassContext context = getClassContext();
         JavaClass jclass = context.getJavaClass();
         Method method = getMethod();
         BitSet pcInBlock = new BitSet();
 
-        IAnalysisCache analysisCache = Global.getAnalysisCache();
-        XMethod xMethod = XFactory.createXMethod(jclass, method);
+        edu.umd.cs.findbugs.classfile.IAnalysisCache analysisCache = edu.umd.cs.findbugs.classfile.Global.getAnalysisCache();
+        edu.umd.cs.findbugs.ba.XMethod xMethod = edu.umd.cs.findbugs.ba.XFactory.createXMethod(jclass, method);
         OpcodeStack.JumpInfo jumpInfo = null;
         try {
             jumpInfo = analysisCache.getMethodAnalysis(OpcodeStack.JumpInfo.class, xMethod.getMethodDescriptor());
-        } catch (CheckedAnalysisException e) {
-            AnalysisContext.logError("Error getting jump information", e);
+        } catch (edu.umd.cs.findbugs.classfile.CheckedAnalysisException e) {
+            edu.umd.cs.findbugs.ba.AnalysisContext.logError("Error getting jump information", e);
         }
         for (CodeException e : getCode().getExceptionTable()) {
             if (e.getCatchType() != 0) {
@@ -212,7 +211,7 @@ public class BadResourceCheck extends OpcodeStackDetector {
     }
 
     @Override
-    public void visitClassContext(ClassContext classContext) {
+    public void visitClassContext(edu.umd.cs.findbugs.ba.ClassContext classContext) {
 
         JavaClass jclass = classContext.getJavaClass();
         // for test only
@@ -294,8 +293,8 @@ public class BadResourceCheck extends OpcodeStackDetector {
         currentLevelCapturer = new ResourceInstanceCapturer();
         blockManager = new IfElseBlockManager();
         branchManager = new IfElseBranchManager();
-        resourceClosed = new HashMap<>();
-        tempResourceRegMap = new HashMap<>();
+        resourceClosed = new HashMap<Integer, BitSetBuffer>();
+        tempResourceRegMap = new HashMap<Integer, ResourceTarget>();
     }
 
     @Override
@@ -325,14 +324,13 @@ public class BadResourceCheck extends OpcodeStackDetector {
                 XField xFieldOperand = getXFieldOperand();
                 lastFieldName = xFieldOperand.getName();
             }
-            else if (OpcodeUtils.isInvoke(seen)) {
+            else if (edu.umd.cs.findbugs.util.OpcodeUtils.isInvoke(seen)) {
                 ResourceOperation resourceOperation = getResourceOperation();
                 boolean resourceClose = isResourceCloseInvoke(resourceOperation);
                 // 如果是关闭，则将关闭的属性存储起来
                 if (resourceClose) {
                     int prevOpcode = getPrevOpcode(1);
                     if (prevOpcode == GETFIELD) {
-                        XField xFieldOperand = getXFieldOperand();
                         lastLevelResourceFieldNames.add(lastFieldName);
                         currentLookIntoReturnResource = true;
                     }
@@ -384,7 +382,7 @@ public class BadResourceCheck extends OpcodeStackDetector {
             // 判断返回的对象是不是开启的资源对象，通过变量的stackIndex（registerOperand）进行判断，
             // 如果是，将资源类型存到lookIntoReturnResource里面
             int prevOpcode = getPrevOpcode(1);
-            boolean isLoad = OpcodeUtils.isLoad(prevOpcode);
+            boolean isLoad = edu.umd.cs.findbugs.util.OpcodeUtils.isLoad(prevOpcode);
             if (isLoad) {
                 currentLookIntoReturnResource = removeInstance(currentLevelCapturer, currentLevelLastRegLoad);
                 currentLevelLastRegLoad = null;
@@ -428,25 +426,25 @@ public class BadResourceCheck extends OpcodeStackDetector {
 
     private void scanCurrentLevel(int seen) {
 
-        if (OpcodeUtils.isStore(seen)) {
+        if (edu.umd.cs.findbugs.util.OpcodeUtils.isStore(seen)) {
             // 如果其前面一条指令是invoke，则存储registerOperand
             int prevOpcode = getPrevOpcode(1);
-            boolean isInvoke = OpcodeUtils.isInvoke(prevOpcode);
+            boolean isInvoke = edu.umd.cs.findbugs.util.OpcodeUtils.isInvoke(prevOpcode);
             if (isInvoke) {
                 int registerOperand = getRegisterOperand();
                 currentLevelCapturer.addStackIndex(registerOperand);
             }
-        } else if (OpcodeUtils.isLoad(seen)) {
+        } else if (edu.umd.cs.findbugs.util.OpcodeUtils.isLoad(seen)) {
             currentLevelLastRegLoad = getRegisterOperand();
         } else if (seen == ARETURN) {
             // 判断返回的对象是不是开启的资源对象，通过变量的stackIndex（registerOperand）进行判断，
             // 如果是，将其从capturer中消除（相当于关闭资源）
             int prevOpcode = getPrevOpcode(1);
-            boolean isLoad = OpcodeUtils.isLoad(prevOpcode);
+            boolean isLoad = edu.umd.cs.findbugs.util.OpcodeUtils.isLoad(prevOpcode);
             if (isLoad) {
                 removeInstance(currentLevelCapturer, currentLevelLastRegLoad);
             }
-        } else if (OpcodeUtils.isInvoke(seen)) {
+        } else if (edu.umd.cs.findbugs.util.OpcodeUtils.isInvoke(seen)) {
 
             // todo: test
             int pc = getPC();
@@ -475,6 +473,11 @@ public class BadResourceCheck extends OpcodeStackDetector {
             boolean resourceClose = isResourceCloseInvoke(targetOperation);
             if (resourceClose) {
                 if (ResourceFactory.isFieldMode()) {
+                    int prevOpcode = getPrevOpcode(1);
+                    if (prevOpcode == GETFIELD) {
+                        targetOperation.addField(lastFieldName);
+
+                    }
                     removeInstanceForFieldMode(currentLevelCapturer, targetOperation);
                 } else {
                     removeInstance(currentLevelCapturer, currentLevelLastRegLoad);
@@ -486,9 +489,13 @@ public class BadResourceCheck extends OpcodeStackDetector {
         else if (seen == PUTFIELD) {
             int prevOpcode = getPrevOpcode(1);
             XField xFieldOperand = getXFieldOperand();
-            if (OpcodeUtils.isInvoke(prevOpcode)) {
+            if (edu.umd.cs.findbugs.util.OpcodeUtils.isInvoke(prevOpcode)) {
                 currentLevelCapturer.addFieldName(xFieldOperand.getName());
             }
+        }
+        else if(seen == GETFIELD){
+            XField xFieldOperand = getXFieldOperand();
+            lastFieldName = xFieldOperand.getName();
         }
     }
 
@@ -500,19 +507,10 @@ public class BadResourceCheck extends OpcodeStackDetector {
                                      signature);
     }
 
-    private boolean inIfNullBlock(BitSet range) {
-        int start = range.nextSetBit(0);
-        int prevOpcode = getPrevOpcode(start);
-        if (prevOpcode == IFNULL) {
-            return true;
-        }
-        return false;
-    }
-
     // 绘制IfElseBlock结构图
     private void drawIfElseBlock(int seen) {
         // 记录区间
-        if (OpcodeUtils.isIfInstruction(seen)) {
+        if (edu.umd.cs.findbugs.util.OpcodeUtils.isIfInstruction(seen)) {
             int branchTarget = getBranchTarget();
             int branchFallThrough = getBranchFallThrough();
 
@@ -550,13 +548,14 @@ public class BadResourceCheck extends OpcodeStackDetector {
         }
     }
 
-    private void removeInstanceForFieldMode(ResourceInstanceCapturer currentLevelCapturer,
-                                            ResourceOperation resourceOperation) {
+    private void removeInstanceForFieldMode(
+            ResourceInstanceCapturer currentLevelCapturer,
+            ResourceOperation resourceOperation) {
         if (atCatchBlock()) {
             return;
         }
         Set<String> fields = resourceOperation.getFields();
-        for (Iterator<ResourceInstance> it = currentLevelCapturer.listResourceInstance().iterator();it.hasNext();){
+        for (Iterator<ResourceInstance> it = currentLevelCapturer.listResourceInstance().iterator(); it.hasNext();){
             ResourceInstance instance = it.next();
             if (fields.contains(instance.getFieldName())) {
                 it.remove();
@@ -651,7 +650,7 @@ public class BadResourceCheck extends OpcodeStackDetector {
     private boolean likeResourceOpenInvoke(ResourceOperation targetOperation) {
         // 从signature里面取到返回类型的部分
         String signature = targetOperation.getSignature();
-        String className = SignatureUtils.getObjectReturnTypeClassName(signature);
+        String className = edu.umd.cs.findbugs.util.SignatureUtils.getObjectReturnTypeClassName(signature);
         if (className == null) {
             return false;
         }
@@ -684,12 +683,12 @@ public class BadResourceCheck extends OpcodeStackDetector {
             String[] arguments = parser.getArguments();
 
             // 初始化currentLikeResourceRegMap
-            currentLikeResourceRegMap = new HashMap<>();
+            currentLikeResourceRegMap = new HashMap<Integer, ResourceTarget>();
             for (int i = 0; i < arguments.length; i++) {
                 String argument = arguments[i];
                 boolean invovlesResource = ResourceFactory.signatureInvovlesResource(argument);
                 if (invovlesResource) {
-                    String paramClassName = SignatureUtils.trimArgument(argument);
+                    String paramClassName = edu.umd.cs.findbugs.util.SignatureUtils.trimArgument(argument);
                     currentLikeResourceRegMap.put(i, new ResourceTarget(paramClassName));
                 }
             }
@@ -722,7 +721,7 @@ public class BadResourceCheck extends OpcodeStackDetector {
         // 如果不像是资源开启方法，直接返回false
         if (likeResourceOpenInvoke(targetOperation)) {
             boolean isResourceOpen = lookIntoMethodWraper(targetOperation, LOOK_INTO_FOR_OPEN_SCAN_LEVEL);
-            String openClassName = SignatureUtils.getObjectReturnTypeClassName(targetOperation.getSignature());
+            String openClassName = edu.umd.cs.findbugs.util.SignatureUtils.getObjectReturnTypeClassName(targetOperation.getSignature());
             if (isResourceOpen) {
                 if (openClassName != null) {
                     detector.appendOperation(openClassName, targetOperation, OPEN, WHITE);
@@ -765,6 +764,7 @@ public class BadResourceCheck extends OpcodeStackDetector {
             boolean isResourceClose = lookIntoMethodWraper(targetOperation, LOOK_INTO_FOR_CLOSE_SCAN_LEVEL);
             if (isResourceClose) {
                 targetOperation.addFields(lastLevelResourceFieldNames);
+                lastLevelResourceFieldNames.clear();
                 fieldDetector.appendOperation(targetOperation, CLOSE, WHITE);
                 return true;
             }else {
@@ -849,8 +849,9 @@ public class BadResourceCheck extends OpcodeStackDetector {
                 return false;
             }
             JavaClass aClass = adapter.findClass(targetOperation.getClazzName());
-            ClassDescriptor classDescriptor = DescriptorFactory.createClassDescriptor(aClass);
-            ClassContext classContext = analysisCache.getClassAnalysis(ClassContext.class, classDescriptor);
+            edu.umd.cs.findbugs.classfile.ClassDescriptor classDescriptor = edu.umd.cs.findbugs.classfile.DescriptorFactory.createClassDescriptor(aClass);
+            edu.umd.cs.findbugs.ba.ClassContext classContext = analysisCache.getClassAnalysis(
+                    edu.umd.cs.findbugs.ba.ClassContext.class, classDescriptor);
             Method[] methods = aClass.getMethods();
             for (int i = 0; i < methods.length; i++) {
                 Method method = methods[i];

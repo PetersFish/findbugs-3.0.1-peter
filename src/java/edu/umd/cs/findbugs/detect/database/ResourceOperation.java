@@ -21,7 +21,7 @@ public class ResourceOperation {
     private final String signature;
 
     // todo: new func
-    private final Set<String> fields = new HashSet<>();
+    private final Set<String> fields = new HashSet<String>();
 
     private static final String INIT_METHOD = "<init>";
 
@@ -106,5 +106,9 @@ public class ResourceOperation {
 
     public Set<String> getFields() {
         return fields;
+    }
+
+    public void addField(String lastFieldName) {
+        fields.add(lastFieldName);
     }
 }
